@@ -31,12 +31,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 cmake_policy(SET CMP0074 NEW)
 find_package(MPI REQUIRED)
 
-add_executable(OpenSTC ${src_file})
+add_executable(openstc ${src_file})
 
-set_target_properties(OpenSTC PROPERTIES
+set_target_properties(openstc PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON)
 
-set_target_properties(OpenSTC
+set_target_properties(openstc
   PROPERTIES
   CXX_STANDARD 20 # A newer version CMake 3.25.2 would support this
   CXX_EXTENSIONS OFF
@@ -44,12 +44,12 @@ set_target_properties(OpenSTC
   #  "$<$<COMPILE_LANGUAGE:CXX>:${flags_release}>"
 )
 
-target_include_directories(OpenSTC
+target_include_directories(openstc
   PUBLIC
   ${CMAKE_SOURCE_DIR}/depends/include/
 )
 
-target_link_directories(OpenSTC
+target_link_directories(openstc
   PUBLIC#PRIVATE
   "$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/depends/lib/debug>"
   "$<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/depends/lib/release>"
@@ -61,7 +61,7 @@ target_link_directories(OpenSTC
 #  "$<$<COMPILE_LANGUAGE:CXX>:${flags_release}>"
 #  )
 
-target_link_libraries(OpenSTC
+target_link_libraries(openstc
   PUBLIC#PRIVATE
   "$<$<CONFIG:Debug>:fmtd>"
   "$<$<CONFIG:Release>:fmt>"
