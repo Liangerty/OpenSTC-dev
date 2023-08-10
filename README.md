@@ -1,12 +1,7 @@
-OpenSTC
+OpenSTC-dev
 ======
 
-**OpenSTC** is a CFD program written in C++ and CUDA. The program tends to provide an all-in-one CFD simulation tool for Supersonic Turbulent Combustion simulations, where the *all-in-one* means the application levels can vary from RANS to DNS. The target users can be industrial engineers (RANS) as well as scientific researchers (LES and DNS).
-
-Comments
---------------------
-
-The final direction of developing this program is stated above, but the current ability is far from completeness (doge). The situation is more like, that I want to have a rocket engine, but what I currently have are just some wood sticks. Let me introduce what the code can do currently.
+**OpenSTC-dev** is the development part of **OpenSTC**. For ease of use, please go to [OpenSTC](https://github.com/Liangerty/OpenSTC).
 
 Current ability
 -----------------
@@ -36,7 +31,7 @@ About the interface:
 - Chemistry: CHEMKIN format
 - Setups: Txt files to be edited.
 
-Functions to be implemented in the near future
+Functions that are under development in this dev version
 -----------------
 
 - Unsteady simulation ability with SSPRK.
@@ -77,7 +72,7 @@ After we prepare these files, we can compile the program with CMake as follows:
 
    The number after `--parallel` is the number of threads that to be used when compiling the codes.
 
-After these operation, the executable `openstc` should be in the current directory.
+After these operations, the executable `openstc` should be in the current directory.
 
 Hey
 -----------------
