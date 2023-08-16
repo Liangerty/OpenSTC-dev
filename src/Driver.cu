@@ -113,8 +113,10 @@ void Driver<mix_model, turb_method>::simulate() {
     switch (temporal_tag) {
       case 11: // For example, if DULUSGS, then add a function to initiate the computation instead of initialize before setting up the scheme as CPU code
         break;
-      case 12:break;
-      default:printf("Not implemented");
+      case 12:
+        break;
+      default:
+        printf("Not implemented");
     }
   }
 }
@@ -213,6 +215,10 @@ void Driver<mix_model, turb_method>::steady_simulation() {
   for (integer b = 0; b < n_block; ++b) {
     const auto mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
     bpg[b] = {(mx - 1) / tpb.x + 1, (my - 1) / tpb.y + 1, (mz - 1) / tpb.z + 1};
+  }
+
+  for (auto b = 0; b < n_block; ++b) {
+    store_last_step<<<bpg[b], tpb>>>(field[b].d_ptr);
   }
 
   while (!converged) {
@@ -409,7 +415,8 @@ void Driver<mix_model, turb_method>::post_process() {
       case 0: // Compute the 2D cf/qw
         wall_friction_heatflux_2d(mesh, field, parameter);
         break;
-      default:break;
+      default:
+        break;
     }
   }
 }
