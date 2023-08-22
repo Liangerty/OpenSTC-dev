@@ -5,7 +5,8 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
     myid{parameter.get_int("myid")}, inviscid_scheme{parameter.get_int("inviscid_scheme")},
     reconstruction{parameter.get_int("reconstruction")}, limiter{parameter.get_int("limiter")},
     viscous_scheme{parameter.get_int("viscous_order")}, rans_model{parameter.get_int("RANS_model")},
-    turb_implicit{parameter.get_int("turb_implicit")}, chemSrcMethod{parameter.get_int("chemSrcMethod")},
+    turb_implicit{parameter.get_int("turb_implicit")}, compressibility_correction{parameter.get_int("compressibility_correction")},
+    chemSrcMethod{parameter.get_int("chemSrcMethod")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
     Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")) {
   const auto &spec = species;

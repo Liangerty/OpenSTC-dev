@@ -34,6 +34,10 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 
+__device__ real Wilcox_compressibility_correction(real Mt);
+
+__device__ real Zeman_compressibility_correction(real Mt, real gammaP1);
+
 // Warning: There too many arguments passes here, which may degrade the performance compared to previous inline version.
 // However, this makes the code more compact and easier for later models to be added on.
 // We may investigate how we can accelerate this without sacrificing the compactness of the code later.
