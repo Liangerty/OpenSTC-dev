@@ -42,11 +42,10 @@ cfd::compute_transport_property(integer i, integer j, integer k, real temperatur
                                 cfd::DParameter *param, DZone *zone) {
   const auto n_spec{param->n_spec};
   const real *mw = param->mw;
-  const auto yk = zone->sv;
 
-  real X[MAX_SPEC_NUMBER], vis[MAX_SPEC_NUMBER];
+  real X[MAX_SPEC_NUMBER], vis[MAX_SPEC_NUMBER], d_ij[MAX_SPEC_NUMBER * MAX_SPEC_NUMBER];
   for (int l = 0; l < n_spec; ++l) {
-    X[l] = yk(i, j, k, l) * mw_total / mw[l];
+    X[l] = zone->sv(i, j, k, l) * mw_total / mw[l];
     const real t_dl{temperature * param->LJ_potent_inv[l]}; //dimensionless temperature
     const real collision_integral{1.147 * std::pow(t_dl, -0.145) + std::pow(t_dl + 0.5, -2)};
     vis[l] = param->vis_coeff[l] * std::sqrt(temperature) / collision_integral;
@@ -72,6 +71,7 @@ cfd::compute_transport_property(integer i, integer j, integer k, real temperatur
   zone->mul(i, j, k) = viscosity;
   zone->thermal_conductivity(i, j, k) = conductivity;
 
+  /*
   // The diffusivity is now computed via constant Schmidt number method
   const real sc{param->Sc};
   for (auto l = 0; l < n_spec; ++l) {
@@ -80,6 +80,32 @@ cfd::compute_transport_property(integer i, integer j, integer k, real temperatur
     } else {
       zone->rho_D(i, j, k, l) = (1 - yk(i, j, k, l)) * viscosity / ((1 - X[l]) * sc);
     }
+  }
+  */
+  // The diffusivity is computed by mixture-averaged method.
+  const real t_3over2_over_p{temperature * std::sqrt(temperature) / zone->bv(i, j, k, 4)};
+  for (int m = 0; m < n_spec; ++m) {
+    for (int n = m + 1; n < n_spec; ++n) {
+      if (m != n) {
+        const real t_red{temperature * param->kb_over_eps_jk(m, n)};
+        const real omega_d{compute_Omega_D(t_red)};
+        d_ij[m * n_spec + n] = param->binary_diffusivity_coeff(m, n) * t_3over2_over_p / omega_d;
+        d_ij[n * n_spec + m] = d_ij[m * n_spec + n];
+      }
+    }
+  }
+  constexpr real eps{1e-12};
+  for (int l = 0; l < n_spec; ++l) {
+    real num{0};
+    real den{0};
+
+    for (int n = 0; n < n_spec; ++n) {
+      if (l != n) {
+        num += (X[n] + eps) * mw[n];
+        den += (X[n] + eps) / d_ij[l * n_spec + n];
+      }
+    }
+    zone->rho_D(i, j, k, l) = zone->bv(i, j, k, 0) * num / (den * mw_total);
   }
 }
 
@@ -112,4 +138,8 @@ cfd::compute_viscosity(integer i, integer j, integer k, real temperature, real m
     viscosity += vis[m] * X[m] / vis_temp;
   }
   return viscosity;
+}
+
+__device__ real cfd::compute_Omega_D(real t_red) {
+  return 1.0 / std::pow(t_red, 0.145) + 1.0 / ((t_red + 0.5) * (t_red + 0.5));
 }

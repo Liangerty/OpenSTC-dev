@@ -24,7 +24,9 @@ struct Species {
   std::vector<real> LJ_potent_inv;  // the inverse of the Lennard-Jones potential
   std::vector<real> vis_coeff;  // the coefficient to compute viscosity
   gxl::MatrixDyn<real> WjDivWi_to_One4th, sqrt_WiDivWjPl1Mul8; // Some constant value to compute partition functions
-  // Temporary variables to compute transport properties, should not be accessed from other functions
+  gxl::MatrixDyn<real> binary_diffusivity_coeff;
+  gxl::MatrixDyn<real> kb_over_eps_jk; // Used to compute reduced temperature for diffusion coefficients
+// Temporary variables to compute transport properties, should not be accessed from other functions
   std::vector<real> x;
   std::vector<real> vis_spec;
   std::vector<real> lambda;
@@ -37,6 +39,12 @@ private:
   bool read_therm(std::ifstream &therm_dat, bool read_from_comb_mech);
 
   void read_tran(std::ifstream &tran_dat);
+
+  static integer is_polar(real dipole_moment);
+
+  real compute_xi(integer j, integer k, real *dipole_moment, real *sigma, real *eps_kb, real *alpha);
+
+  real compute_reduced_dipole_moment(integer i, real *dipole_moment, real *eps_kb, real *sigma);
 };
 
 struct Reaction {

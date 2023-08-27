@@ -129,6 +129,8 @@ void cfd::Species::set_nspec(integer n_sp, integer n_elem) {
   vis_coeff.resize(n_sp, 0);
   WjDivWi_to_One4th.resize(n_sp, n_sp);
   sqrt_WiDivWjPl1Mul8.resize(n_sp, n_sp);
+  binary_diffusivity_coeff.resize(n_sp, n_sp);
+  kb_over_eps_jk.resize(n_sp, n_sp);
   x.resize(n_sp, 0);
   vis_spec.resize(n_sp, 0);
   lambda.resize(n_sp, 0);
@@ -297,6 +299,8 @@ void cfd::Species::read_tran(std::ifstream &tran_dat) {
   std::istringstream line(input);
   integer n_read{0};
   std::vector<int> have_read;
+
+  std::vector<double> eps_kb(n_spec, 0), sigma(n_spec, 0), mu(n_spec, 0), alpha(n_spec, 0);
   while (gxl::getline_to_stream(tran_dat, input, line, gxl::Case::upper)) {
     if (input[0] == '!' || input.empty()) {
       continue;
@@ -328,10 +332,10 @@ void cfd::Species::read_tran(std::ifstream &tran_dat) {
 
     gxl::to_stringstream(input, line);
     real lj_potential{0}, collision_diameter{0}, pass{0};
-    line >> key >> pass >> lj_potential >> collision_diameter;
-    LJ_potent_inv[curr_sp] = 1.0 / lj_potential;
+    line >> key >> pass >> eps_kb[curr_sp] >> sigma[curr_sp] >> mu[curr_sp] >> alpha[curr_sp];
+    LJ_potent_inv[curr_sp] = 1.0 / eps_kb[curr_sp];
     vis_coeff[curr_sp] =
-        2.6693e-6 * sqrt(mw[curr_sp]) / (collision_diameter * collision_diameter);
+        2.6693e-6 * sqrt(mw[curr_sp]) / (sigma[curr_sp] * sigma[curr_sp]);
 
     have_read.push_back(curr_sp);
     ++n_read;
@@ -343,6 +347,68 @@ void cfd::Species::read_tran(std::ifstream &tran_dat) {
       sqrt_WiDivWjPl1Mul8(i, j) = 1.0 / std::sqrt(8 * (1 + mw[i] / mw[j]));
     }
   }
+
+  gxl::MatrixDyn<real> W_jk(n_spec, n_spec, 0), sigma_jk(n_spec, n_spec, 0), xi_jk(n_spec, n_spec, 1);
+  gxl::MatrixDyn<real> eps_jk_kb(n_spec, n_spec, 0), mu_jk2(n_spec, n_spec, 0), delta_ij_star(n_spec, n_spec, 0);
+  for (int j = 0; j < n_spec; ++j) {
+    for (int k = j + 1; k < n_spec; ++k) {
+      W_jk(j, k) = mw[j] * mw[k] / (mw[j] + mw[k]);
+      W_jk(k, j) = W_jk(j, k);
+
+      mu_jk2(j, k) = mu[j] * mu[k];
+      mu_jk2(k, j) = mu_jk2(j, k);
+      if (is_polar(mu[j]) != is_polar(mu[k])) {
+        xi_jk(j, k) = compute_xi(j, k, mu.data(), sigma.data(), eps_kb.data(), alpha.data());
+        xi_jk(k, j) = xi_jk(j, k);
+        mu_jk2(j, k) = 0;
+        mu_jk2(k, j) = 0;
+      }
+      sigma_jk(j, k) = 0.5 * (sigma[j] + sigma[k]) * std::pow(xi_jk(j, k), -1.0 / 6.0);
+
+      binary_diffusivity_coeff(j, k) = 0.0188324 / (std::sqrt(W_jk(j, k)) * sigma_jk(j, k) * sigma_jk(j, k));
+      binary_diffusivity_coeff(k, j) = binary_diffusivity_coeff(j, k);
+
+      eps_jk_kb(j, k) = xi_jk(j, k) * xi_jk(j, k) * std::sqrt(eps_kb[j] * eps_kb[k]);
+      kb_over_eps_jk(j, k) = 1.0 / eps_jk_kb(j, k);
+      kb_over_eps_jk(k, j) = kb_over_eps_jk(j, k);
+
+      delta_ij_star(j, k) = 0.5 * compute_reduced_dipole_moment(j, mu.data(), eps_kb.data(), sigma.data()) *
+                            compute_reduced_dipole_moment(k, mu.data(), eps_kb.data(), sigma.data());
+    }
+  }
+}
+
+integer cfd::Species::is_polar(real dipole_moment) {
+  return dipole_moment == 0 ? 0 : 1;
+}
+
+real cfd::Species::compute_xi(integer j, integer k, real *dipole_moment, real *sigma, real *eps_kb, real *alpha) {
+  // labels for n(non-polar), p(polar)
+  integer n{0}, p{0};
+  if (is_polar(dipole_moment[j])) {
+    p = j;
+    n = k;
+  } else {
+    p = k;
+    n = j;
+  }
+
+  const real alpha_n_star{alpha[n] / std::pow(sigma[n], 3)};
+  const real mu_p_star{compute_reduced_dipole_moment(p, dipole_moment, eps_kb, sigma)};
+  const real xi = 1.0 + 0.25 * alpha_n_star * mu_p_star * mu_p_star * std::sqrt(eps_kb[p] / eps_kb[n]);
+  return xi;
+}
+
+real cfd::Species::compute_reduced_dipole_moment(integer i, real *dipole_moment, real *eps_kb, real *sigma) {
+  if (!is_polar(dipole_moment[i])) {
+    return 0;
+  }
+  // default dipole moment (mu) in Debye = 1e-18 cm^{3/2}ergs^{1/2} = 1e-18 cm^{3/2}(1e-7 J)^{1/2}
+  // default collision diameter (sigma) in Angstrom = 1e-8 cm
+  const real Debye_to_cm_Joule = 1e-18 * std::sqrt(1e-7);
+  const real cm_to_Angstrom = std::pow(1e+8, 1.5);
+  const real convert_units = Debye_to_cm_Joule * cm_to_Angstrom / std::sqrt(boltzmann_constants);
+  return convert_units * dipole_moment[i] / std::sqrt(eps_kb[i] * sigma[i] * sigma[i] * sigma[i]);
 }
 
 cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {

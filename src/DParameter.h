@@ -30,13 +30,19 @@ struct DParameter {
   integer n_reac = 0;
   real Pr = 0.72;
   real cfl = 1;
+
   real *mw = nullptr;
   ggxl::MatrixDyn<real> high_temp_coeff, low_temp_coeff;
   real *t_low = nullptr, *t_mid = nullptr, *t_high = nullptr;
+
+  // Transport properties
   real *LJ_potent_inv = nullptr;
   real *vis_coeff = nullptr;
   ggxl::MatrixDyn<real> WjDivWi_to_One4th;
   ggxl::MatrixDyn<real> sqrt_WiDivWjPl1Mul8;
+  ggxl::MatrixDyn<real> binary_diffusivity_coeff;
+  ggxl::MatrixDyn<real> kb_over_eps_jk; // Used to compute reduced temperature for diffusion coefficients
+
   real Sc = 0.9;
   real Prt = 0.9;
   real Sct = 0.9;

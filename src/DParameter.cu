@@ -40,6 +40,12 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
   sqrt_WiDivWjPl1Mul8.init_with_size(n_spec, n_spec);
   cudaMemcpy(sqrt_WiDivWjPl1Mul8.data(), spec.sqrt_WiDivWjPl1Mul8.data(),
              sqrt_WiDivWjPl1Mul8.size() * sizeof(real), cudaMemcpyHostToDevice);
+  binary_diffusivity_coeff.init_with_size(n_spec, n_spec);
+  cudaMemcpy(binary_diffusivity_coeff.data(), spec.binary_diffusivity_coeff.data(),
+             binary_diffusivity_coeff.size() * sizeof(real), cudaMemcpyHostToDevice);
+  kb_over_eps_jk.init_with_size(n_spec, n_spec);
+  cudaMemcpy(kb_over_eps_jk.data(), spec.kb_over_eps_jk.data(),
+             kb_over_eps_jk.size() * sizeof(real), cudaMemcpyHostToDevice);
   Sc = parameter.get_real("schmidt_number");
 
   // reactions info
