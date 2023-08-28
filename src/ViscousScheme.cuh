@@ -122,11 +122,15 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER];//, y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real GradXi_cdot_GradY[MAX_SPEC_NUMBER], sum_GradXi_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{0}; // correction velocity Vc in form of xi_x*rho*V_x^c + xi_y*rho*V_y^c + xi_z*rho*V_z^c
     const real tm = 0.5 * (pv(i, j, k, 5) + pv(i + 1, j, k, 5));
     compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+//    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real mw_tot{0};
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i + 1, j, k, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i + 1, j, k, l)) + turb_diffusivity;
 
       const real y_xi = y(i + 1, j, k, l) - y(i, j, k, l);
@@ -134,24 +138,40 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       const real y_zeta =
           0.25 * (y(i, j, k + 1, l) - y(i, j, k - 1, l) + y(i + 1, j, k + 1, l) - y(i + 1, j, k - 1, l));
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+//      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+//      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+//      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+//      GradXi_cdot_GradY[l] = xi_x_div_jac * y_x[l] + xi_y_div_jac * y_y[l] + xi_z_div_jac * y_z[l];
+      GradXi_cdot_GradY[l] = xi_x_div_jac * y_x + xi_y_div_jac * y_y + xi_z_div_jac * y_z;
 
       // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      fv[4] += xi_x_div_jac * DMulH * y_x[l];
-      fv[4] += xi_y_div_jac * DMulH * y_y[l];
-      fv[4] += xi_z_div_jac * DMulH * y_z[l];
+//      const auto DMulH = diffusivity[l] * h[l];
+//      fv[4] += xi_x_div_jac * DMulH * y_x[l];
+//      fv[4] += xi_y_div_jac * DMulH * y_y[l];
+//      fv[4] += xi_z_div_jac * DMulH * y_z[l];
+      fv[4] += diffusivity[l] * h[l] * GradXi_cdot_GradY[l];
 
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
+      sum_GradXi_cdot_GradY_over_wl += GradXi_cdot_GradY[l] / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
+
+      CorrectionVelocityTerm += diffusivity[l] * GradXi_cdot_GradY[l];
+
+//      rho_uc += diffusivity[l] * y_x[l];
+//      rho_vc += diffusivity[l] * y_y[l];
+//      rho_wc += diffusivity[l] * y_z[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradXi_cdot_GradY_over_wl;
     for (int l = 0; l < n_spec; ++l) {
-      fv[5 + l] = diffusivity[l] * (xi_x_div_jac * y_x[l] + xi_y_div_jac * y_y[l] + xi_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i + 1, j, k, l)) *
-                  (xi_x_div_jac * rho_uc + xi_y_div_jac * rho_vc + xi_z_div_jac * rho_wc);
+      fv[5 + l] = diffusivity[l] * (GradXi_cdot_GradY[l] - mw_tot * yk[l] * sum_GradXi_cdot_GradY_over_wl)
+                  - yk[l] * CorrectionVelocityTerm;
+//      fv[5 + l] = diffusivity[l] * (xi_x_div_jac * y_x[l] + xi_y_div_jac * y_y[l] + xi_z_div_jac * y_z[l]) -
+//                  0.5 * (y(i, j, k, l) + y(i + 1, j, k, l)) *
+//                  (xi_x_div_jac * rho_uc + xi_y_div_jac * rho_vc + xi_z_div_jac * rho_wc);
     }
   }
 
@@ -322,11 +342,16 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER];//, y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real GradEta_cdot_GradY[MAX_SPEC_NUMBER], sum_GradEta_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{
+        0}; // correction velocity Vc in form of xi_x*rho*V_x^c + xi_y*rho*V_y^c + xi_z*rho*V_z^c
     const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j + 1, k, 5));
     compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+//    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real mw_tot{0};
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i, j + 1, k, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i, j + 1, k, l)) + turb_diffusivity;
 
       const real y_xi = 0.25 * (y(i + 1, j, k, l) - y(i - 1, j, k, l) + y(i + 1, j + 1, k, l) - y(i - 1, j + 1, k, l));
@@ -334,24 +359,39 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       const real y_zeta =
           0.25 * (y(i, j, k + 1, l) - y(i, j, k - 1, l) + y(i, j + 1, k + 1, l) - y(i, j + 1, k - 1, l));
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+//      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+//      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+//      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      GradEta_cdot_GradY[l] = eta_x_div_jac * y_x + eta_y_div_jac * y_y + eta_z_div_jac * y_z;
 
       // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      gv[4] += eta_x_div_jac * DMulH * y_x[l];
-      gv[4] += eta_y_div_jac * DMulH * y_y[l];
-      gv[4] += eta_z_div_jac * DMulH * y_z[l];
+//      const auto DMulH = diffusivity[l] * h[l];
+//      gv[4] += eta_x_div_jac * DMulH * y_x[l];
+//      gv[4] += eta_y_div_jac * DMulH * y_y[l];
+//      gv[4] += eta_z_div_jac * DMulH * y_z[l];
+      gv[4] += diffusivity[l] * h[l] * GradEta_cdot_GradY[l];
 
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
+      sum_GradEta_cdot_GradY_over_wl += GradEta_cdot_GradY[l] / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
+
+      CorrectionVelocityTerm += diffusivity[l] * GradEta_cdot_GradY[l];
+
+//      rho_uc += diffusivity[l] * y_x[l];
+//      rho_vc += diffusivity[l] * y_y[l];
+//      rho_wc += diffusivity[l] * y_z[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradEta_cdot_GradY_over_wl;
     for (int l = 0; l < n_spec; ++l) {
-      gv[5 + l] = diffusivity[l] * (eta_x_div_jac * y_x[l] + eta_y_div_jac * y_y[l] + eta_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i, j + 1, k, l)) *
-                  (eta_x_div_jac * rho_uc + eta_y_div_jac * rho_vc + eta_z_div_jac * rho_wc);
+      gv[5 + l] = diffusivity[l] * (GradEta_cdot_GradY[l] - mw_tot * yk[l] * sum_GradEta_cdot_GradY_over_wl)
+          - yk[l] * CorrectionVelocityTerm;
+//      gv[5 + l] = diffusivity[l] * (eta_x_div_jac * y_x[l] + eta_y_div_jac * y_y[l] + eta_z_div_jac * y_z[l]) -
+//                  0.5 * (y(i, j, k, l) + y(i, j + 1, k, l)) *
+//                  (eta_x_div_jac * rho_uc + eta_y_div_jac * rho_vc + eta_z_div_jac * rho_wc);
     }
   }
 
@@ -518,35 +558,55 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER];//, y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
+    real GradZeta_cdot_GradY[MAX_SPEC_NUMBER], sum_GradZeta_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{
+        0}; // correction velocity Vc in form of xi_x*rho*V_x^c + xi_y*rho*V_y^c + xi_z*rho*V_z^c
     const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j, k + 1, 5));
     compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+//    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real mw_tot{0};
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i, j, k + 1, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i, j, k + 1, l)) + turb_diffusivity;
 
       const real y_xi = 0.25 * (y(i + 1, j, k, l) - y(i - 1, j, k, l) + y(i + 1, j, k + 1, l) - y(i - 1, j, k + 1, l));
       const real y_eta = 0.25 * (y(i, j + 1, k, l) - y(i, j - 1, k, l) + y(i, j + 1, k + 1, l) - y(i, j - 1, k + 1, l));
       const real y_zeta = y(i, j, k + 1, l) - y(i, j, k, l);
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+//      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+//      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+//      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      GradZeta_cdot_GradY[l] = zeta_x_div_jac * y_x + zeta_y_div_jac * y_y + zeta_z_div_jac * y_z;
 
       // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      hv[4] += zeta_x_div_jac * DMulH * y_x[l];
-      hv[4] += zeta_y_div_jac * DMulH * y_y[l];
-      hv[4] += zeta_z_div_jac * DMulH * y_z[l];
+//      const auto DMulH = diffusivity[l] * h[l];
+//      hv[4] += zeta_x_div_jac * DMulH * y_x[l];
+//      hv[4] += zeta_y_div_jac * DMulH * y_y[l];
+//      hv[4] += zeta_z_div_jac * DMulH * y_z[l];
+      hv[4] += diffusivity[l] * h[l] * GradZeta_cdot_GradY[l];
 
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
+      sum_GradZeta_cdot_GradY_over_wl += GradZeta_cdot_GradY[l] / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
+
+      CorrectionVelocityTerm += diffusivity[l] * GradZeta_cdot_GradY[l];
+
+//      rho_uc += diffusivity[l] * y_x[l];
+//      rho_vc += diffusivity[l] * y_y[l];
+//      rho_wc += diffusivity[l] * y_z[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradZeta_cdot_GradY_over_wl;
     for (int l = 0; l < n_spec; ++l) {
-      hv[5 + l] = diffusivity[l] * (zeta_x_div_jac * y_x[l] + zeta_y_div_jac * y_y[l] + zeta_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i, j, k + 1, l)) *
-                  (zeta_x_div_jac * rho_uc + zeta_y_div_jac * rho_vc + zeta_z_div_jac * rho_wc);
+      hv[5 + l] = diffusivity[l] * (GradZeta_cdot_GradY[l] - mw_tot * yk[l] * sum_GradZeta_cdot_GradY_over_wl)
+          - yk[l] * CorrectionVelocityTerm;
+//      hv[5 + l] = diffusivity[l] * (zeta_x_div_jac * y_x[l] + zeta_y_div_jac * y_y[l] + zeta_z_div_jac * y_z[l]) -
+//                  0.5 * (y(i, j, k, l) + y(i, j, k + 1, l)) *
+//                  (zeta_x_div_jac * rho_uc + zeta_y_div_jac * rho_vc + zeta_z_div_jac * rho_wc);
     }
   }
 
