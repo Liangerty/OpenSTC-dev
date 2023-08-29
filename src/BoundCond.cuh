@@ -153,8 +153,8 @@ __global__ void apply_outflow(DZone *zone, integer i_face) {
   }
 }
 
-template<TurbMethod turb_method>
-__global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face) {
+template<MixtureModel mix_model, TurbMethod turb_method>
+__global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParameter *param) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
   const auto &b = zone->boundary[i_face];
@@ -175,6 +175,28 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face) {
   const real v = inflow->v;
   const real w = inflow->w;
   const auto *i_sv = inflow->sv;
+
+  // Specify the boundary value as given.
+  auto &cv = zone->cv;
+  bv(i, j, k, 0) = density;
+  bv(i, j, k, 1) = u;
+  bv(i, j, k, 2) = v;
+  bv(i, j, k, 3) = w;
+  bv(i, j, k, 4) = inflow->pressure;
+  bv(i, j, k, 5) = inflow->temperature;
+  for (int l = 0; l < n_scalar; ++l) {
+    sv(i, j, k, l) = i_sv[l];
+    cv(i, j, k, 5 + l) = density * i_sv[l];
+  }
+  if constexpr (turb_method == TurbMethod::RANS) {
+    zone->mut(i, j, k) = inflow->mut;
+  }
+  cv(i, j, k, 0) = density;
+  cv(i, j, k, 1) = density * u;
+  cv(i, j, k, 2) = density * v;
+  cv(i, j, k, 3) = density * w;
+  compute_total_energy<mix_model>(i, j, k, zone, param);
+
 
   for (integer g = 1; g <= ngg; g++) {
     const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -364,7 +386,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_inflow<turb_method> <<<BPG, TPB>>>(field.d_ptr, &inflow[l], i_face);
+      apply_inflow<mix_model, turb_method> <<<BPG, TPB>>>(field.d_ptr, &inflow[l], i_face, param);
     }
   }
 
