@@ -141,8 +141,10 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
       const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
       const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
       GradXi_cdot_GradY[l] = xi_x_div_jac * y_x + xi_y_div_jac * y_y + xi_z_div_jac * y_z;
 
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
       sum_GradXi_cdot_GradY_over_wl += GradXi_cdot_GradY[l] / param->mw[l];
       mw_tot += yk[l] / param->mw[l];
       sum_rhoDkYk += diffusivity[l] * yk[l];
@@ -151,10 +153,34 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     }
     mw_tot = 1.0 / mw_tot;
     CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradXi_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    const real p_xi{pv(i + 1, j, k, 4) - pv(i, j, k, 4)};
+    const real p_eta{
+        0.25 * (pv(i, j + 1, k, 4) - pv(i, j - 1, k, 4) + pv(i + 1, j + 1, k, 4) - pv(i + 1, j - 1, k, 4))};
+    const real p_zeta{
+        0.25 * (pv(i, j, k + 1, 4) - pv(i, j, k - 1, 4) + pv(i + 1, j, k + 1, 4) - pv(i + 1, j, k - 1, 4))};
+
+    const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+    const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+    const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+    const real gradXi_cdot_gradP_over_p{
+        (xi_x_div_jac * p_x + xi_y_div_jac * p_y + xi_z_div_jac * p_z) / (0.5 * (pv(i + 1, j, k, 4) + pv(i, j, k, 4)))};
+
+    // Velocity correction for the 3rd term
+    real vc_pressure_gradient{0};
+    for (int l = 0; l < n_spec; ++l) {
+      vc_pressure_gradient += (mw_tot / param->mw[l] - 1) * diffusivity[l] * yk[l];
+    }
+    CorrectionVelocityTerm += vc_pressure_gradient * gradXi_cdot_gradP_over_p;
+
     for (int l = 0; l < n_spec; ++l) {
       const real diffusion_flux{
-          diffusivity[l] * (GradXi_cdot_GradY[l] - mw_tot * yk[l] * sum_GradXi_cdot_GradY_over_wl) -
-          yk[l] * CorrectionVelocityTerm};
+          diffusivity[l] * (GradXi_cdot_GradY[l]
+                            - mw_tot * yk[l] * sum_GradXi_cdot_GradY_over_wl
+                            + (mw_tot / param->mw[l] - 1) * yk[l] * gradXi_cdot_gradP_over_p)
+          - yk[l] * CorrectionVelocityTerm};
       fv[5 + l] = diffusion_flux;
       // Add the influence of species diffusion
       fv[4] += h[l] * diffusion_flux;
@@ -347,8 +373,10 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
       const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
       const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
       GradEta_cdot_GradY[l] = eta_x_div_jac * y_x + eta_y_div_jac * y_y + eta_z_div_jac * y_z;
 
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
       sum_GradEta_cdot_GradY_over_wl += GradEta_cdot_GradY[l] / param->mw[l];
       mw_tot += yk[l] / param->mw[l];
       sum_rhoDkYk += diffusivity[l] * yk[l];
@@ -357,9 +385,34 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     }
     mw_tot = 1.0 / mw_tot;
     CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradEta_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    const real p_xi =
+        0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j + 1, k, 4) - pv(i - 1, j + 1, k, 4));
+    const real p_eta = pv(i, j + 1, k, 4) - pv(i, j, k, 4);
+    const real p_zeta =
+        0.25 * (pv(i, j, k + 1, 4) - pv(i, j, k - 1, 4) + pv(i, j + 1, k + 1, 4) - pv(i, j + 1, k - 1, 4));
+
+    const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+    const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+    const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+    const real gradEta_cdot_gradP_over_p{
+        (eta_x_div_jac * p_x + eta_y_div_jac * p_y + eta_z_div_jac * p_z) /
+        (0.5 * (pv(i, j, k, 4) + pv(i, j + 1, k, 4)))};
+
+    // Velocity correction for the 3rd term
+    real vc_pressure_gradient{0};
+    for (int l = 0; l < n_spec; ++l) {
+      vc_pressure_gradient += (mw_tot / param->mw[l] - 1) * diffusivity[l] * yk[l];
+    }
+    CorrectionVelocityTerm += vc_pressure_gradient * gradEta_cdot_gradP_over_p;
+
     for (int l = 0; l < n_spec; ++l) {
       const real diffusion_flux{
-          diffusivity[l] * (GradEta_cdot_GradY[l] - mw_tot * yk[l] * sum_GradEta_cdot_GradY_over_wl)
+          diffusivity[l] * (GradEta_cdot_GradY[l]
+                            - mw_tot * yk[l] * sum_GradEta_cdot_GradY_over_wl
+                            + (mw_tot / param->mw[l] - 1) * yk[l] * gradEta_cdot_gradP_over_p)
           - yk[l] * CorrectionVelocityTerm};
       gv[5 + l] = diffusion_flux;
       // Add the influence of species diffusion
@@ -548,8 +601,10 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
       const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
       const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
       GradZeta_cdot_GradY[l] = zeta_x_div_jac * y_x + zeta_y_div_jac * y_y + zeta_z_div_jac * y_z;
 
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
       sum_GradZeta_cdot_GradY_over_wl += GradZeta_cdot_GradY[l] / param->mw[l];
       mw_tot += yk[l] / param->mw[l];
       sum_rhoDkYk += diffusivity[l] * yk[l];
@@ -558,10 +613,35 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     }
     mw_tot = 1.0 / mw_tot;
     CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradZeta_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    const real p_xi =
+        0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j, k + 1, 4) - pv(i - 1, j, k + 1, 4));
+    const real p_eta =
+        0.25 * (pv(i, j + 1, k, 4) - pv(i, j - 1, k, 4) + pv(i, j + 1, k + 1, 4) - pv(i, j - 1, k + 1, 4));
+    const real p_zeta = pv(i, j, k + 1, 4) - pv(i, j, k, 4);
+
+    const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+    const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+    const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+    const real gradZeta_cdot_gradP_over_p{
+        (zeta_x_div_jac * p_x + zeta_y_div_jac * p_y + zeta_z_div_jac * p_z) /
+        (0.5 * (pv(i, j, k, 4) + pv(i, j, k + 1, 4)))};
+
+    // Velocity correction for the 3rd term
+    real vc_pressure_gradient{0};
+    for (int l = 0; l < n_spec; ++l) {
+      vc_pressure_gradient += (mw_tot / param->mw[l] - 1) * diffusivity[l] * yk[l];
+    }
+    CorrectionVelocityTerm += vc_pressure_gradient * gradZeta_cdot_gradP_over_p;
+
     for (int l = 0; l < n_spec; ++l) {
       const real diffusion_flux{
-          diffusivity[l] * (GradZeta_cdot_GradY[l] - mw_tot * yk[l] * sum_GradZeta_cdot_GradY_over_wl) -
-          yk[l] * CorrectionVelocityTerm};
+          diffusivity[l] * (GradZeta_cdot_GradY[l]
+                            - mw_tot * yk[l] * sum_GradZeta_cdot_GradY_over_wl
+                            + (mw_tot / param->mw[l] - 1) * yk[l] * gradZeta_cdot_gradP_over_p)
+          - yk[l] * CorrectionVelocityTerm};
       hv[5 + l] = diffusion_flux;
       // Add the influence of species diffusion
       hv[4] += h[l] * diffusion_flux;
