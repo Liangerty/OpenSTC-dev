@@ -12,3 +12,5 @@ real prandtl_number = 0.72
 
 real turbulent_prandtl_number = 0.9
 real turbulent_schmidt_number = 0.9
+
+bool  gradPInDiffusionFlux   =   0

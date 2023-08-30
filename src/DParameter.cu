@@ -8,6 +8,7 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
     turb_implicit{parameter.get_int("turb_implicit")}, compressibility_correction{parameter.get_int("compressibility_correction")},
     chemSrcMethod{parameter.get_int("chemSrcMethod")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
+    gradPInDiffusionFlux{parameter.get_bool("gradPInDiffusionFlux")},
     Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")) {
   const auto &spec = species;
   n_spec = spec.n_spec;

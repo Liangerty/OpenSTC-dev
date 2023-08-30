@@ -42,6 +42,7 @@ struct DParameter {
   ggxl::MatrixDyn<real> sqrt_WiDivWjPl1Mul8;
   ggxl::MatrixDyn<real> binary_diffusivity_coeff;
   ggxl::MatrixDyn<real> kb_over_eps_jk; // Used to compute reduced temperature for diffusion coefficients
+  bool gradPInDiffusionFlux = false;
 
   real Sc = 0.9;
   real Prt = 0.9;
