@@ -68,19 +68,19 @@ void cfd::Parameter::read_one_file(std::ifstream &file) {
     if (type == "int") {
       int val{};
       line >> val;
-      int_parameters.emplace(std::make_pair(key, val));
+      int_parameters[key] = val;
     } else if (type == "real") {
       real val{};
       line >> val;
-      real_parameters.emplace(std::make_pair(key, val));
+      real_parameters[key] = val;
     } else if (type == "bool") {
       bool val{};
       line >> val;
-      bool_parameters.emplace(std::make_pair(key, val));
+      bool_parameters[key] = val;
     } else if (type == "string") {
       std::string val{};
       line >> val;
-      string_parameters.emplace(std::make_pair(key, val));
+      string_parameters[key] = val;
     } else if (type == "array") {
       if (key == "int") {
         std::vector<int> arr;
@@ -89,7 +89,7 @@ void cfd::Parameter::read_one_file(std::ifstream &file) {
         while (read_line_to_array(line, arr)) {
           gxl::getline_to_stream(file, input, line);
         }
-        int_array.emplace(std::make_pair(name, arr));
+        int_array[name] = arr;
       } else if (key == "real") {
         std::vector<real> arr;
         std::string name{temp};
@@ -97,7 +97,7 @@ void cfd::Parameter::read_one_file(std::ifstream &file) {
         while (read_line_to_array(line, arr)) {
           gxl::getline_to_stream(file, input, line);
         }
-        real_array.emplace(std::make_pair(name, arr));
+        real_array[name] = arr;
       } else if (key == "string") {
         std::vector<std::string> arr;
         std::string name{temp};
@@ -105,12 +105,11 @@ void cfd::Parameter::read_one_file(std::ifstream &file) {
         while (read_line_to_array(line, arr)) {
           gxl::getline_to_stream(file, input, line);
         }
-        string_array.emplace(std::make_pair(name, arr));
+        string_array[name] = arr;
       }
     } else if (type == "struct") {
-      std::string name{key};
       auto the_struct = read_struct(file);
-      struct_array.emplace(std::make_pair(name, the_struct));
+      struct_array[key] = the_struct;
     }
   }
   file.close();

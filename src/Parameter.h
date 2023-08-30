@@ -48,20 +48,25 @@ public:
 
   std::string &get_string(const std::string &name) { return string_parameters.at(name); }
 
-  [[nodiscard]] const auto& get_struct(const std::string &name)const{return struct_array.at(name);}
+  [[nodiscard]] const auto &get_struct(const std::string &name) const { return struct_array.at(name); }
 
-  [[nodiscard]] const auto& get_string_array(const std::string &name)const{return string_array.at(name);}
-  [[nodiscard]] const auto& get_real_array(const std::string &name)const{return real_array.at(name);}
-  [[nodiscard]] const auto& get_int_array(const std::string &name)const{return int_array.at(name);}
+  [[nodiscard]] const auto &get_string_array(const std::string &name) const { return string_array.at(name); }
+
+  [[nodiscard]] const auto &get_real_array(const std::string &name) const { return real_array.at(name); }
+
+  [[nodiscard]] const auto &get_int_array(const std::string &name) const { return int_array.at(name); }
 
   void update_parameter(const std::string &name, const int new_value) { int_parameters[name] = new_value; }
+
   void update_parameter(const std::string &name, const real new_value) { real_parameters[name] = new_value; }
-  void update_parameter(const std::string &name, const std::vector<real>& new_value) { real_array[name] = new_value; }
+
+  void update_parameter(const std::string &name, const std::vector<real> &new_value) { real_array[name] = new_value; }
 
   ~Parameter() = default;
 
 private:
-  const std::array<std::string, 9> file_names{
+  const std::array<std::string, 10> file_names{
+      "./input_files/setup/default_settings.txt",
       "./input_files/setup/0_global_control.txt",   //basic information about the simulation
       "./input_files/setup/1_grid_information.txt", //the information about grid
       "./input_files/setup/2_scheme.txt",
@@ -78,7 +83,7 @@ private:
   void read_one_file(std::ifstream &file);
 
   template<typename T>
-  integer read_line_to_array(std::istringstream& line, std::vector<T>& arr);
+  integer read_line_to_array(std::istringstream &line, std::vector<T> &arr);
 
   static std::map<std::string, std::variant<std::string, integer, real>> read_struct(std::ifstream &file);
 };
