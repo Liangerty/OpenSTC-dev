@@ -122,11 +122,13 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
-    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i + 1, j, k, 5));
-    compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real diffusivity[MAX_SPEC_NUMBER];
+    real sum_GradXi_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{0};
+    real mw_tot{0};
+    real diffusion_driven_force[MAX_SPEC_NUMBER];
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i + 1, j, k, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i + 1, j, k, l)) + turb_diffusivity;
 
       const real y_xi = y(i + 1, j, k, l) - y(i, j, k, l);
@@ -134,24 +136,57 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       const real y_zeta =
           0.25 * (y(i, j, k + 1, l) - y(i, j, k - 1, l) + y(i + 1, j, k + 1, l) - y(i + 1, j, k - 1, l));
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
+      const real GradXi_cdot_GradY = xi_x_div_jac * y_x + xi_y_div_jac * y_y + xi_z_div_jac * y_z;
+      diffusion_driven_force[l] = GradXi_cdot_GradY;
+      CorrectionVelocityTerm += diffusivity[l] * GradXi_cdot_GradY;
 
-      // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      fv[4] += xi_x_div_jac * DMulH * y_x[l];
-      fv[4] += xi_y_div_jac * DMulH * y_y[l];
-      fv[4] += xi_z_div_jac * DMulH * y_z[l];
-
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
+      sum_GradXi_cdot_GradY_over_wl += GradXi_cdot_GradY / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradXi_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    if (param->gradPInDiffusionFlux) {
+      const real p_xi{pv(i + 1, j, k, 4) - pv(i, j, k, 4)};
+      const real p_eta{
+          0.25 * (pv(i, j + 1, k, 4) - pv(i, j - 1, k, 4) + pv(i + 1, j + 1, k, 4) - pv(i + 1, j - 1, k, 4))};
+      const real p_zeta{
+          0.25 * (pv(i, j, k + 1, 4) - pv(i, j, k - 1, 4) + pv(i + 1, j, k + 1, 4) - pv(i + 1, j, k - 1, 4))};
+
+      const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+      const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+      const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+      const real gradXi_cdot_gradP_over_p{
+          (xi_x_div_jac * p_x + xi_y_div_jac * p_y + xi_z_div_jac * p_z) /
+          (0.5 * (pv(i + 1, j, k, 4) + pv(i, j, k, 4)))};
+
+      // Velocity correction for the 3rd term
+      for (int l = 0; l < n_spec; ++l) {
+        diffusion_driven_force[l] += (mw_tot / param->mw[l] - 1) * yk[l] * gradXi_cdot_gradP_over_p;
+        CorrectionVelocityTerm += (mw_tot / param->mw[l] - 1) * yk[l] * gradXi_cdot_gradP_over_p * diffusivity[l];
+      }
+    }
+
+    real h[MAX_SPEC_NUMBER];
+    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i + 1, j, k, 5));
+    compute_enthalpy(tm, h, param);
+
     for (int l = 0; l < n_spec; ++l) {
-      fv[5 + l] = diffusivity[l] * (xi_x_div_jac * y_x[l] + xi_y_div_jac * y_y[l] + xi_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i + 1, j, k, l)) *
-                  (xi_x_div_jac * rho_uc + xi_y_div_jac * rho_vc + xi_z_div_jac * rho_wc);
+      const real diffusion_flux{
+          diffusivity[l] * (diffusion_driven_force[l]
+                            - mw_tot * yk[l] * sum_GradXi_cdot_GradY_over_wl)
+          - yk[l] * CorrectionVelocityTerm};
+      fv[5 + l] = diffusion_flux;
+      // Add the influence of species diffusion
+      fv[4] += h[l] * diffusion_flux;
     }
   }
 
@@ -322,11 +357,13 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
-    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j + 1, k, 5));
-    compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real diffusivity[MAX_SPEC_NUMBER];
+    real sum_GradEta_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{0};
+    real mw_tot{0};
+    real diffusion_driven_force[MAX_SPEC_NUMBER];
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i, j + 1, k, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i, j + 1, k, l)) + turb_diffusivity;
 
       const real y_xi = 0.25 * (y(i + 1, j, k, l) - y(i - 1, j, k, l) + y(i + 1, j + 1, k, l) - y(i - 1, j + 1, k, l));
@@ -334,24 +371,57 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       const real y_zeta =
           0.25 * (y(i, j, k + 1, l) - y(i, j, k - 1, l) + y(i, j + 1, k + 1, l) - y(i, j + 1, k - 1, l));
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
+      const real GradEta_cdot_GradY = eta_x_div_jac * y_x + eta_y_div_jac * y_y + eta_z_div_jac * y_z;
+      diffusion_driven_force[l] = GradEta_cdot_GradY;
+      CorrectionVelocityTerm += diffusivity[l] * GradEta_cdot_GradY;
 
-      // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      gv[4] += eta_x_div_jac * DMulH * y_x[l];
-      gv[4] += eta_y_div_jac * DMulH * y_y[l];
-      gv[4] += eta_z_div_jac * DMulH * y_z[l];
-
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
+      sum_GradEta_cdot_GradY_over_wl += GradEta_cdot_GradY / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradEta_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    if (param->gradPInDiffusionFlux){
+      const real p_xi =
+          0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j + 1, k, 4) - pv(i - 1, j + 1, k, 4));
+      const real p_eta = pv(i, j + 1, k, 4) - pv(i, j, k, 4);
+      const real p_zeta =
+          0.25 * (pv(i, j, k + 1, 4) - pv(i, j, k - 1, 4) + pv(i, j + 1, k + 1, 4) - pv(i, j + 1, k - 1, 4));
+
+      const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+      const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+      const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+      const real gradEta_cdot_gradP_over_p{
+          (eta_x_div_jac * p_x + eta_y_div_jac * p_y + eta_z_div_jac * p_z) /
+          (0.5 * (pv(i, j, k, 4) + pv(i, j + 1, k, 4)))};
+
+      // Velocity correction for the 3rd term
+      for (int l = 0; l < n_spec; ++l) {
+        diffusion_driven_force[l] += (mw_tot / param->mw[l] - 1) * yk[l] * gradEta_cdot_gradP_over_p;
+        CorrectionVelocityTerm += (mw_tot / param->mw[l] - 1) * yk[l] * gradEta_cdot_gradP_over_p * diffusivity[l];
+      }
+    }
+
+    real h[MAX_SPEC_NUMBER];
+    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j + 1, k, 5));
+    compute_enthalpy(tm, h, param);
+
     for (int l = 0; l < n_spec; ++l) {
-      gv[5 + l] = diffusivity[l] * (eta_x_div_jac * y_x[l] + eta_y_div_jac * y_y[l] + eta_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i, j + 1, k, l)) *
-                  (eta_x_div_jac * rho_uc + eta_y_div_jac * rho_vc + eta_z_div_jac * rho_wc);
+      const real diffusion_flux{
+          diffusivity[l] * (diffusion_driven_force[l]
+                            - mw_tot * yk[l] * sum_GradEta_cdot_GradY_over_wl)
+          - yk[l] * CorrectionVelocityTerm};
+      gv[5 + l] = diffusion_flux;
+      // Add the influence of species diffusion
+      gv[4] += h[l] * diffusion_flux;
     }
   }
 
@@ -518,35 +588,71 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       turb_diffusivity = mut / param->Sct;
     }
 
-    real h[MAX_SPEC_NUMBER], diffusivity[MAX_SPEC_NUMBER], y_x[MAX_SPEC_NUMBER], y_y[MAX_SPEC_NUMBER], y_z[MAX_SPEC_NUMBER];
-    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j, k + 1, 5));
-    compute_enthalpy(tm, h, param);
-    real rho_uc{0}, rho_vc{0}, rho_wc{0};
+    real diffusivity[MAX_SPEC_NUMBER];
+    real sum_GradZeta_cdot_GradY_over_wl{0}, sum_rhoDkYk{0}, yk[MAX_SPEC_NUMBER];
+    real CorrectionVelocityTerm{0};
+    real mw_tot{0};
+    real diffusion_driven_force[MAX_SPEC_NUMBER];
     for (int l = 0; l < n_spec; ++l) {
+      yk[l] = 0.5 * (y(i, j, k, l) + y(i, j, k + 1, l));
       diffusivity[l] = 0.5 * (zone->rho_D(i, j, k, l) + zone->rho_D(i, j, k + 1, l)) + turb_diffusivity;
 
       const real y_xi = 0.25 * (y(i + 1, j, k, l) - y(i - 1, j, k, l) + y(i + 1, j, k + 1, l) - y(i - 1, j, k + 1, l));
       const real y_eta = 0.25 * (y(i, j + 1, k, l) - y(i, j - 1, k, l) + y(i, j + 1, k + 1, l) - y(i, j - 1, k + 1, l));
       const real y_zeta = y(i, j, k + 1, l) - y(i, j, k, l);
 
-      y_x[l] = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
-      y_y[l] = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
-      y_z[l] = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      const real y_x = y_xi * xi_x + y_eta * eta_x + y_zeta * zeta_x;
+      const real y_y = y_xi * xi_y + y_eta * eta_y + y_zeta * zeta_y;
+      const real y_z = y_xi * xi_z + y_eta * eta_z + y_zeta * zeta_z;
+      // Term 1, the gradient of mass fraction.
+      const real GradZeta_cdot_GradY = zeta_x_div_jac * y_x + zeta_y_div_jac * y_y + zeta_z_div_jac * y_z;
+      diffusion_driven_force[l] = GradZeta_cdot_GradY;
+      CorrectionVelocityTerm += diffusivity[l] * GradZeta_cdot_GradY;
 
-      // Add the influence of species diffusion
-      const auto DMulH = diffusivity[l] * h[l];
-      hv[4] += zeta_x_div_jac * DMulH * y_x[l];
-      hv[4] += zeta_y_div_jac * DMulH * y_y[l];
-      hv[4] += zeta_z_div_jac * DMulH * y_z[l];
+      // Term 2, the gradient of molecular weights, which is represented by sum of "gradient of mass fractions divided by molecular weight".
+      sum_GradZeta_cdot_GradY_over_wl += GradZeta_cdot_GradY / param->mw[l];
+      mw_tot += yk[l] / param->mw[l];
+      sum_rhoDkYk += diffusivity[l] * yk[l];
 
-      rho_uc += diffusivity[l] * y_x[l];
-      rho_vc += diffusivity[l] * y_y[l];
-      rho_wc += diffusivity[l] * y_z[l];
     }
+    mw_tot = 1.0 / mw_tot;
+    CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradZeta_cdot_GradY_over_wl;
+
+    // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
+    if (param->gradPInDiffusionFlux){
+      const real p_xi =
+          0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j, k + 1, 4) - pv(i - 1, j, k + 1, 4));
+      const real p_eta =
+          0.25 * (pv(i, j + 1, k, 4) - pv(i, j - 1, k, 4) + pv(i, j + 1, k + 1, 4) - pv(i, j - 1, k + 1, 4));
+      const real p_zeta = pv(i, j, k + 1, 4) - pv(i, j, k, 4);
+
+      const real p_x{p_xi * xi_x + p_eta * eta_x + p_zeta * zeta_x};
+      const real p_y{p_xi * xi_y + p_eta * eta_y + p_zeta * zeta_y};
+      const real p_z{p_xi * xi_z + p_eta * eta_z + p_zeta * zeta_z};
+
+      const real gradZeta_cdot_gradP_over_p{
+          (zeta_x_div_jac * p_x + zeta_y_div_jac * p_y + zeta_z_div_jac * p_z) /
+          (0.5 * (pv(i, j, k, 4) + pv(i, j, k + 1, 4)))};
+
+      // Velocity correction for the 3rd term
+      for (int l = 0; l < n_spec; ++l) {
+        diffusion_driven_force[l] += (mw_tot / param->mw[l] - 1) * yk[l] * gradZeta_cdot_gradP_over_p;
+        CorrectionVelocityTerm += (mw_tot / param->mw[l] - 1) * yk[l] * gradZeta_cdot_gradP_over_p * diffusivity[l];
+      }
+    }
+
+    real h[MAX_SPEC_NUMBER];
+    const real tm = 0.5 * (pv(i, j, k, 5) + pv(i, j, k + 1, 5));
+    compute_enthalpy(tm, h, param);
+
     for (int l = 0; l < n_spec; ++l) {
-      hv[5 + l] = diffusivity[l] * (zeta_x_div_jac * y_x[l] + zeta_y_div_jac * y_y[l] + zeta_z_div_jac * y_z[l]) -
-                  0.5 * (y(i, j, k, l) + y(i, j, k + 1, l)) *
-                  (zeta_x_div_jac * rho_uc + zeta_y_div_jac * rho_vc + zeta_z_div_jac * rho_wc);
+      const real diffusion_flux{
+          diffusivity[l] * (diffusion_driven_force[l]
+                            - mw_tot * yk[l] * sum_GradZeta_cdot_GradY_over_wl)
+          - yk[l] * CorrectionVelocityTerm};
+      hv[5 + l] = diffusion_flux;
+      // Add the influence of species diffusion
+      hv[4] += h[l] * diffusion_flux;
     }
   }
 

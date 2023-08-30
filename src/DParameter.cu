@@ -5,8 +5,10 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
     myid{parameter.get_int("myid")}, inviscid_scheme{parameter.get_int("inviscid_scheme")},
     reconstruction{parameter.get_int("reconstruction")}, limiter{parameter.get_int("limiter")},
     viscous_scheme{parameter.get_int("viscous_order")}, rans_model{parameter.get_int("RANS_model")},
-    turb_implicit{parameter.get_int("turb_implicit")}, chemSrcMethod{parameter.get_int("chemSrcMethod")},
+    turb_implicit{parameter.get_int("turb_implicit")}, compressibility_correction{parameter.get_int("compressibility_correction")},
+    chemSrcMethod{parameter.get_int("chemSrcMethod")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
+    gradPInDiffusionFlux{parameter.get_bool("gradPInDiffusionFlux")},
     Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")) {
   const auto &spec = species;
   n_spec = spec.n_spec;
@@ -39,6 +41,12 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
   sqrt_WiDivWjPl1Mul8.init_with_size(n_spec, n_spec);
   cudaMemcpy(sqrt_WiDivWjPl1Mul8.data(), spec.sqrt_WiDivWjPl1Mul8.data(),
              sqrt_WiDivWjPl1Mul8.size() * sizeof(real), cudaMemcpyHostToDevice);
+  binary_diffusivity_coeff.init_with_size(n_spec, n_spec);
+  cudaMemcpy(binary_diffusivity_coeff.data(), spec.binary_diffusivity_coeff.data(),
+             binary_diffusivity_coeff.size() * sizeof(real), cudaMemcpyHostToDevice);
+  kb_over_eps_jk.init_with_size(n_spec, n_spec);
+  cudaMemcpy(kb_over_eps_jk.data(), spec.kb_over_eps_jk.data(),
+             kb_over_eps_jk.size() * sizeof(real), cudaMemcpyHostToDevice);
   Sc = parameter.get_real("schmidt_number");
 
   // reactions info

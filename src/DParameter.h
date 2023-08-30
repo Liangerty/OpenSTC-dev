@@ -14,25 +14,36 @@ struct DParameter {
   explicit DParameter(Parameter &parameter, Species &species, Reaction &reaction);
 
   integer myid = 0;   // The process id of this process
+
   integer inviscid_scheme = 0;  // The tag for inviscid scheme. 3 - AUSM+
   integer reconstruction = 2; // The reconstruction method for inviscid flux computation
   integer limiter = 0;  // The tag for limiter method
   integer viscous_scheme = 0; // The tag for viscous scheme. 0 - Inviscid, 2 - 2nd order central discretization
+
   integer rans_model = 0;  // The tag for RANS model. 0 - Laminar, 1 - SA, 2 - SST
   integer turb_implicit = 1;    // If we implicitly treat the turbulent source term. By default, implicitly treat(1), else, 0(explicit)
+  integer compressibility_correction = 0; // Which compressibility correction to be used. 0 - No compressibility correction, 1 - Wilcox's correction, 2 - Sarkar's correction, 3 - Zeman's correction
+
   integer chemSrcMethod = 0;  // For finite rate chemistry, we need to know how to implicitly treat the chemical source
   integer n_spec = 0;
   integer n_scalar = 0;
   integer n_reac = 0;
   real Pr = 0.72;
   real cfl = 1;
+
   real *mw = nullptr;
   ggxl::MatrixDyn<real> high_temp_coeff, low_temp_coeff;
   real *t_low = nullptr, *t_mid = nullptr, *t_high = nullptr;
+
+  // Transport properties
   real *LJ_potent_inv = nullptr;
   real *vis_coeff = nullptr;
   ggxl::MatrixDyn<real> WjDivWi_to_One4th;
   ggxl::MatrixDyn<real> sqrt_WiDivWjPl1Mul8;
+  ggxl::MatrixDyn<real> binary_diffusivity_coeff;
+  ggxl::MatrixDyn<real> kb_over_eps_jk; // Used to compute reduced temperature for diffusion coefficients
+  bool gradPInDiffusionFlux = false;
+
   real Sc = 0.9;
   real Prt = 0.9;
   real Sct = 0.9;

@@ -24,4 +24,6 @@ constexpr double p_atm = 101325;
 // Air molecular weight.
 // Ref: Engineering ToolBox, (2003). Air - Thermophysical Properties. [online] Available at: https://www.engineeringtoolbox.com/air-properties-d_156.html [Accessed Day Mo. Year].
 constexpr double mw_air = 28.9647;
+// Boltzmann constant [J/K]
+constexpr double boltzmann_constants = 1.380649e-23;
 }

@@ -15,6 +15,8 @@ __device__ void
 compute_transport_property(integer i, integer j, integer k, real temperature, real mw_total, const real *cp,
                            DParameter *param, DZone *zone);
 
+__device__ real compute_Omega_D(real t_red);
+
 __device__ real
 compute_viscosity(integer i, integer j, integer k, real temperature, real mw_total, cfd::DParameter *param,
                   DZone *zone);
