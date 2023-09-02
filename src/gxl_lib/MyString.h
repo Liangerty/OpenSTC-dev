@@ -29,4 +29,8 @@ void write_str(const char *str, FILE *file);
 std::string read_str(FILE* file);
 std::string read_str_from_plt_MPI_ver(MPI_File &file, MPI_Offset &offset);
 std::string read_str_MPI_ver(MPI_File &file, MPI_Offset &offset, int n_bytes);
+
+void write_str_without_null(const char *str, MPI_File &file, MPI_Offset &offset);
+void write_str(const char *str, MPI_File &file, MPI_Offset &offset);
+
 }

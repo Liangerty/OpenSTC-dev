@@ -1,0 +1,9 @@
+// Control what to output
+// By default, we output the basic variables at every step to a file named flowfield.plt in the output folder, which is used to restart computation and visualize the flowfield.
+// However, there may be some situations where we need a simple view to some of the planes, which are usually the boundary faces.
+// Therefore, we tell which boundary faces to be output here, by specifying the related boundary condition label
+
+// The faces which are related to this boundary condition label will be outputted
+array  int output_bc   {
+    2
+}

@@ -88,7 +88,7 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
       }
     }
   }
-  // Initialize the inflow and wall condtions which are different among cases.
+  // Initialize the inflow and wall conditions which are different among cases.
   std::vector<integer> wall_idx, symmetry_idx, inflow_idx, outflow_idx;
   auto &bcs = parameter.get_string_array("boundary_conditions");
   for (auto &bc_name: bcs) {
