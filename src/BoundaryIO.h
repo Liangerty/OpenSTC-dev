@@ -32,7 +32,7 @@ struct BoundaryIO {
   void print_boundary();
 
 private:
-  void write_header(const Mesh &mesh, std::vector<Field> &_field);
+  void write_header(std::vector<Field> &_field);
 };
 
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
@@ -128,7 +128,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::BoundaryIO(const Paramet
     create_directories(out_dir);
   }
 
-  write_header(mesh, field);
+  write_header(field);
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method, integer BoundaryType>
@@ -176,7 +176,7 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
 
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
 void
-BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const Mesh &mesh, std::vector<Field> &_field) {
+BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(std::vector<Field> &_field) {
   const std::filesystem::path out_dir("output/field");
   const integer n_proc{parameter.get_int("n_proc")};
   for (int l = 0; l < labels_to_output.size(); ++l) {
