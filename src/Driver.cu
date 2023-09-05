@@ -206,8 +206,7 @@ void Driver<mix_model, turb_method>::steady_simulation() {
   const integer output_screen = parameter.get_int("output_screen");
   const integer output_file = parameter.get_int("output_file");
 
-  BoundaryIO<mix_model, turb_method> boundaryIo(parameter, mesh, spec, field);
-  FieldIO<mix_model, turb_method> fieldIo(myid, mesh, field, parameter, spec, 0);
+  IOManager<mix_model, turb_method> ioManager(myid, mesh, field, parameter, spec, 0);
 
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
@@ -289,8 +288,7 @@ void Driver<mix_model, turb_method>::steady_simulation() {
     }
     cudaDeviceSynchronize();
     if (step % output_file == 0 || converged) {
-      fieldIo.print_field(step);
-      boundaryIo.print_boundary();
+      ioManager.print_field(step);
       post_process();
     }
   }

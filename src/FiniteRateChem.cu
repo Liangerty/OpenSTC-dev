@@ -113,6 +113,21 @@ __device__ real arrhenius(real t, real A, real b, real Ea) {
 
 __device__ void
 backward_reaction_rate(real t, const real *kf, const real *concentration, const DParameter *param, real *kb) {
+  integer n_gibbs{param->n_reac};
+  for (int i = 0; i < param->n_reac; ++i) {
+    if (param->reac_type[i] == 0) {
+      // Irreversible reaction
+      kb[i] = 0;
+      --n_gibbs;
+    } else if (param->reac_type[i] == 2) {
+      // REV reaction
+      kb[i] = arrhenius(t, param->A2[i], param->b2[i], param->Ea2[i]);
+      --n_gibbs;
+    }
+  }
+  if (n_gibbs < 1)
+    return;
+
   real gibbs_rt[MAX_SPEC_NUMBER];
   memset(gibbs_rt, 0, sizeof(real) * MAX_SPEC_NUMBER);
   compute_gibbs_div_rt(t, param, gibbs_rt);
@@ -121,15 +136,15 @@ backward_reaction_rate(real t, const real *kf, const real *concentration, const 
   const auto &stoi_f = param->stoi_f, &stoi_b = param->stoi_b;
   auto order = param->reac_order;
   for (int i = 0; i < param->n_reac; ++i) {
-    if (param->reac_type[i] != 2) {
+    if (param->reac_type[i] != 2 && param->reac_type[i] != 0) {
       real d_gibbs{0};
       for (integer l = 0; l < param->n_spec; ++l) {
         d_gibbs += gibbs_rt[l] * (stoi_b(i, l) - stoi_f(i, l));
       }
       const real kc{std::pow(temp_t, order[i]) * std::exp(-d_gibbs)};
       kb[i] = kf[i] / kc;
-    } else {
-      kb[i] = arrhenius(t, param->A2[i], param->b2[i], param->Ea2[i]);
+//    } else {
+//      kb[i] = arrhenius(t, param->A2[i], param->b2[i], param->Ea2[i]);
     }
   }
 
@@ -140,15 +155,25 @@ rate_of_progress(const real *kf, const real *kb, const real *c, real *q, real *q
   const integer n_spec{param->n_spec};
   const auto &stoi_f{param->stoi_f}, &stoi_b{param->stoi_b};
   for (int i = 0; i < param->n_reac; ++i) {
-    q1[i] = 1.0;
-    q2[i] = 1.0;
-    for (int j = 0; j < n_spec; ++j) {
-      q1[i] *= std::pow(c[j], stoi_f(i, j));
-      q2[i] *= std::pow(c[j], stoi_b(i, j));
+    if (param->reac_type[i] != 0) {
+      q1[i] = 1.0;
+      q2[i] = 1.0;
+      for (int j = 0; j < n_spec; ++j) {
+        q1[i] *= std::pow(c[j], stoi_f(i, j));
+        q2[i] *= std::pow(c[j], stoi_b(i, j));
+      }
+      q1[i] *= kf[i];
+      q2[i] *= kb[i];
+      q[i] = q1[i] - q2[i];
+    } else {
+      q1[i] = 1.0;
+      q2[i] = 0.0;
+      for (int j = 0; j < n_spec; ++j) {
+        q1[i] *= std::pow(c[j], stoi_f(i, j));
+      }
+      q1[i] *= kf[i];
+      q[i] = q1[i];
     }
-    q1[i] *= kf[i];
-    q2[i] *= kb[i];
-    q[i] = q1[i] - q2[i];
   }
 }
 
