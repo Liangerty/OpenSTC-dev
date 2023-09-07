@@ -5,7 +5,7 @@
 
 namespace cfd {
 
-struct Inflow{
+struct Inflow {
   explicit Inflow(const std::string &inflow_name, Species &spec, Parameter &parameter);
 
   [[nodiscard]] std::tuple<real, real, real, real, real, real> var_info() const;
@@ -30,7 +30,9 @@ struct Wall {
 
   explicit Wall(const std::map<std::string, std::variant<std::string, integer, real>> &info);
 
-  enum class ThermalType { isothermal, adiabatic };
+  enum class ThermalType {
+    isothermal, adiabatic
+  };
 
   integer label = 2;
   ThermalType thermal_type = ThermalType::isothermal;
@@ -47,6 +49,30 @@ struct Symmetry {
   explicit Symmetry(integer type_label);
 
   integer label = 3;
+};
+
+struct FarField {
+  explicit FarField(cfd::Species &spec, cfd::Parameter &parameter);
+
+  void copy_to_gpu(FarField *d_farfield, Species &spec, const Parameter &parameter);
+
+  integer label = 4;
+  real mach = -1;
+  real pressure = -1;
+  real temperature = -1;
+  real velocity = 0;
+  real density = -1;
+  real u = 1, v = 0, w = 0;
+  real e_idx{1.0};
+  real acoustic_speed = 0;
+  real entropy = 0;
+  real *sv = nullptr;
+  real mw = mw_air;
+  real viscosity = 0;
+  real mut = 0;
+  real specific_heat_ratio = gamma_air;
+  real riemann_invariant = 0;
+  real reynolds_number = -1;
 };
 
 }

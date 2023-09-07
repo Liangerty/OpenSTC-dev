@@ -70,6 +70,33 @@ void register_bc<Inflow>(Inflow *&bc, integer n_bc, std::vector<integer> &indice
   }
 }
 
+template<>
+void
+register_bc<FarField>(FarField *&bc, integer n_bc, std::vector<integer> &indices, BCInfo *&bc_info, Species &species,
+                      Parameter &parameter) {
+  if (n_bc <= 0) {
+    return;
+  }
+
+  cudaMalloc(&bc, n_bc * sizeof(FarField));
+  bc_info = new BCInfo[n_bc];
+  for (integer i = 0; i < n_bc; ++i) {
+    const integer index = indices[i];
+    for (auto &bc_name: parameter.get_string_array("boundary_conditions")) {
+      auto &this_bc = parameter.get_struct(bc_name);
+      integer bc_label = std::get<integer>(this_bc.at("label"));
+      if (index != bc_label) {
+        continue;
+      }
+      bc_info[i].label = bc_label;
+      FarField farfield(species, parameter);
+      farfield.copy_to_gpu(&(bc[i]), species, parameter);
+      cudaMemcpy(&(bc[i]), &farfield, sizeof(FarField), cudaMemcpyHostToDevice);
+      break;
+    }
+  }
+}
+
 void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Species &species, Parameter &parameter) {
   std::vector<integer> bc_labels;
   // Count the number of distinct boundary conditions
@@ -89,7 +116,7 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
     }
   }
   // Initialize the inflow and wall conditions which are different among cases.
-  std::vector<integer> wall_idx, symmetry_idx, inflow_idx, outflow_idx;
+  std::vector<integer> wall_idx, symmetry_idx, inflow_idx, outflow_idx, farfield_idx;
   auto &bcs = parameter.get_string_array("boundary_conditions");
   for (auto &bc_name: bcs) {
     auto &bc = parameter.get_struct(bc_name);
@@ -121,6 +148,9 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
       } else if (type == "symmetry") {
         symmetry_idx.push_back(label);
         ++n_symmetry;
+      } else if (type == "farfield") {
+        farfield_idx.push_back(label);
+        ++n_farfield;
       }
     }
   }
@@ -131,6 +161,9 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
     } else if (lab == 3) {
       symmetry_idx.push_back(lab);
       ++n_symmetry;
+    } else if (lab == 4) {
+      farfield_idx.push_back(lab);
+      ++n_farfield;
     } else if (lab == 5) {
       inflow_idx.push_back(lab);
       ++n_inflow;
@@ -143,6 +176,7 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
   // Read specific conditions
   register_bc<Wall>(wall, n_wall, wall_idx, wall_info, species, parameter);
   register_bc<Symmetry>(symmetry, n_symmetry, symmetry_idx, symmetry_info, species, parameter);
+  register_bc<FarField>(farfield, n_farfield, farfield_idx, farfield_info, species, parameter);
   register_bc<Inflow>(inflow, n_inflow, inflow_idx, inflow_info, species, parameter);
   register_bc<Outflow>(outflow, n_outflow, outflow_idx, outflow_info, species, parameter);
 
@@ -170,6 +204,13 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
       i_symm[i][j] = 0;
     }
   }
+  auto **i_farfield = new integer *[n_farfield];
+  for (size_t i = 0; i < n_farfield; ++i) {
+    i_farfield[i] = new integer[n_block];
+    for (integer j = 0; j < n_block; ++j) {
+      i_farfield[i][j] = 0;
+    }
+  }
   auto **i_inflow = new integer *[n_inflow];
   for (size_t i = 0; i < n_inflow; i++) {
     i_inflow[i] = new integer[n_block];
@@ -189,6 +230,7 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   for (integer i = 0; i < n_block; i++) {
     count_boundary_of_type_bc(mesh[i].boundary, n_wall, i_wall, i, n_block, wall_info);
     count_boundary_of_type_bc(mesh[i].boundary, n_symmetry, i_symm, i, n_block, symmetry_info);
+    count_boundary_of_type_bc(mesh[i].boundary, n_farfield, i_farfield, i, n_block, farfield_info);
     count_boundary_of_type_bc(mesh[i].boundary, n_inflow, i_inflow, i, n_block, inflow_info);
     count_boundary_of_type_bc(mesh[i].boundary, n_outflow, i_outflow, i, n_block, outflow_info);
   }
@@ -197,6 +239,9 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   }
   for (size_t l = 0; l < n_symmetry; ++l) {
     symmetry_info[l].boundary = new int2[symmetry_info[l].n_boundary];
+  }
+  for (size_t l = 0; l < n_farfield; ++l) {
+    farfield_info[l].boundary = new int2[farfield_info[l].n_boundary];
   }
   for (size_t l = 0; l < n_inflow; l++) {
     inflow_info[l].boundary = new int2[inflow_info[l].n_boundary];
@@ -209,6 +254,7 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   for (auto i = 0; i < n_block; i++) {
     link_boundary_and_condition(mesh[i].boundary, wall_info, n_wall, i_wall, i);
     link_boundary_and_condition(mesh[i].boundary, symmetry_info, n_symmetry, i_symm, i);
+    link_boundary_and_condition(mesh[i].boundary, farfield_info, n_farfield, i_farfield, i);
     link_boundary_and_condition(mesh[i].boundary, inflow_info, n_inflow, i_inflow, i);
     link_boundary_and_condition(mesh[i].boundary, outflow_info, n_outflow, i_outflow, i);
   }
@@ -237,6 +283,9 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   for (integer i = 0; i < n_symmetry; i++) {
     delete[]i_symm[i];
   }
+  for (integer i = 0; i < n_farfield; ++i) {
+    delete[]i_farfield[i];
+  }
   for (integer i = 0; i < n_inflow; i++) {
     delete[]i_inflow[i];
   }
@@ -245,6 +294,7 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   }
   delete[]i_wall;
   delete[]i_symm;
+  delete[]i_farfield;
   delete[]i_inflow;
   delete[]i_outflow;
 }
@@ -304,6 +354,19 @@ void Inflow::copy_to_gpu(Inflow *d_inflow, Species &spec, const Parameter &param
   cudaMemcpy(sv, h_sv, n_scalar * sizeof(real), cudaMemcpyHostToDevice);
 
   cudaMemcpy(d_inflow, this, sizeof(Inflow), cudaMemcpyHostToDevice);
+}
+
+void FarField::copy_to_gpu(FarField *d_farfield, Species &spec, const Parameter &parameter) {
+  const integer n_scalar{parameter.get_int("n_scalar")};
+  real *h_sv = new real[n_scalar];
+  for (integer l = 0; l < n_scalar; ++l) {
+    h_sv[l] = sv[l];
+  }
+  delete[]sv;
+  cudaMalloc(&sv, n_scalar * sizeof(real));
+  cudaMemcpy(sv, h_sv, n_scalar * sizeof(real), cudaMemcpyHostToDevice);
+
+  cudaMemcpy(d_farfield, this, sizeof(FarField), cudaMemcpyHostToDevice);
 }
 } // cfd
 #endif

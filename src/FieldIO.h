@@ -74,7 +74,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
     // V112 / V191. V112 was introduced in 2009 while V191 in 2019. They are different only in poly data, so no
     // difference is related to us. For common use, we use V112.
     constexpr auto magic_number{"#!TDV112"};
-    gxl::  write_str_without_null(magic_number, fp, offset);
+    gxl::write_str_without_null(magic_number, fp, offset);
 
     // ii. Integer value of 1
     constexpr int32_t byte_order{1};
