@@ -2,6 +2,7 @@
 #include "Transport.cuh"
 #include "gxl_lib/MyString.h"
 #include <cmath>
+#include "Parallel.h"
 
 cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &parameter) {
   auto &info = parameter.get_struct(inflow_name);
@@ -93,10 +94,11 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
   }
 
   // This should be re-considered later
-  if (inflow_name == "freestream") {
+  if (inflow_name == parameter.get_string("reference_state")) {
     parameter.update_parameter("rho_inf", density);
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
+    parameter.update_parameter("T_inf", temperature);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];
@@ -258,14 +260,60 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
   }
 
   // This should be re-considered later
-//  if (inflow_name == "freestream") {
+  if (parameter.get_string("reference_state") == "farfield") {
     parameter.update_parameter("rho_inf", density);
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
+    parameter.update_parameter("T_inf", temperature);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];
     }
     parameter.update_parameter("sv_inf", sv_inf);
-//  }
+  }
+}
+
+cfd::SubsonicInflow::SubsonicInflow(const std::string &inflow_name, cfd::Parameter &parameter) {
+  const integer n_spec{parameter.get_int("n_spec")};
+  if (n_spec>0){
+    printf("Subsonic inflow boundary condition does not support multi-species simulation.\n");
+    MpiParallel::exit();
+  }
+
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+
+  const real pt_pRef{std::get<real>(info.at("pt_pRef_ratio"))};
+  const real Tt_TRef{std::get<real>(info.at("Tt_TRef_ratio"))};
+  const real pRef{parameter.get_real("p_inf")};
+  const real TRef{parameter.get_real("T_inf")};
+  if (info.find("u") != info.end()) u = std::get<real>(info.at("u"));
+  if (info.find("v") != info.end()) v = std::get<real>(info.at("v"));
+  if (info.find("w") != info.end()) w = std::get<real>(info.at("w"));
+
+  const integer n_scalar = parameter.get_int("n_scalar");
+  sv = new real[n_scalar];
+  for (int i = 0; i < n_scalar; ++i) {
+    sv[i] = 0;
+  }
+
+  total_pressure = pt_pRef * pRef;
+  total_temperature = Tt_TRef * TRef;
+
+  if (parameter.get_int("turbulence_method") == 1) {
+    // RANS simulation
+    if (parameter.get_int("RANS_model") == 2) {
+      // SST
+      const real viscosity{Sutherland(TRef)};
+      mut = std::get<real>(info.at("turb_viscosity_ratio")) * viscosity;
+
+      const real velocity{parameter.get_real("v_inf")};
+      if (info.find("turbulence_intensity") != info.end()) {
+        // For SST model, we need k and omega. If SA, we compute this for nothing.
+        const real turbulence_intensity = std::get<real>(info.at("turbulence_intensity"));
+        sv[n_spec] = 1.5 * velocity * velocity * turbulence_intensity * turbulence_intensity;
+        sv[n_spec + 1] = parameter.get_real("rho_inf") * sv[n_spec] / mut;
+      }
+    }
+  }
 }

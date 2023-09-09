@@ -97,6 +97,30 @@ register_bc<FarField>(FarField *&bc, integer n_bc, std::vector<integer> &indices
   }
 }
 
+template<> void register_bc<SubsonicInflow>(SubsonicInflow *&bc, integer n_bc, std::vector<integer> &indices,
+                                            BCInfo *&bc_info, Species &species, Parameter &parameter) {
+  if (n_bc <= 0) {
+    return;
+  }
+
+  cudaMalloc(&bc, n_bc * sizeof(SubsonicInflow));
+  bc_info = new BCInfo[n_bc];
+  for (integer i = 0; i < n_bc; ++i) {
+    const integer index = indices[i];
+    for (auto &bc_name: parameter.get_string_array("boundary_conditions")) {
+      auto &this_bc = parameter.get_struct(bc_name);
+      integer bc_label = std::get<integer>(this_bc.at("label"));
+      if (index != bc_label) {
+        continue;
+      }
+      bc_info[i].label = bc_label;
+      SubsonicInflow subsonic_inflow(bc_name, parameter);
+      subsonic_inflow.copy_to_gpu(&(bc[i]), species, parameter);
+      break;
+    }
+  }
+}
+
 void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Species &species, Parameter &parameter) {
   std::vector<integer> bc_labels;
   // Count the number of distinct boundary conditions
@@ -116,7 +140,7 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
     }
   }
   // Initialize the inflow and wall conditions which are different among cases.
-  std::vector<integer> wall_idx, symmetry_idx, inflow_idx, outflow_idx, farfield_idx;
+  std::vector<integer> wall_idx, symmetry_idx, inflow_idx, outflow_idx, farfield_idx, subsonic_inflow_idx;
   auto &bcs = parameter.get_string_array("boundary_conditions");
   for (auto &bc_name: bcs) {
     auto &bc = parameter.get_struct(bc_name);
@@ -151,6 +175,9 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
       } else if (type == "farfield") {
         farfield_idx.push_back(label);
         ++n_farfield;
+      } else if (type == "subsonic_inflow") {
+        subsonic_inflow_idx.push_back(label);
+        ++n_subsonic_inflow;
       }
     }
   }
@@ -170,14 +197,20 @@ void DBoundCond::initialize_bc_on_GPU(Mesh &mesh, std::vector<Field> &field, Spe
     } else if (lab == 6) {
       outflow_idx.push_back(lab);
       ++n_outflow;
+    } else if (lab == 7) {
+      subsonic_inflow_idx.push_back(lab);
+      ++n_subsonic_inflow;
     }
   }
 
   // Read specific conditions
-  register_bc<Wall>(wall, n_wall, wall_idx, wall_info, species, parameter);
-  register_bc<Symmetry>(symmetry, n_symmetry, symmetry_idx, symmetry_info, species, parameter);
+  // We always first initialize the Farfield and Inflow conditions, because they may set the reference values.
   register_bc<FarField>(farfield, n_farfield, farfield_idx, farfield_info, species, parameter);
   register_bc<Inflow>(inflow, n_inflow, inflow_idx, inflow_info, species, parameter);
+  register_bc<SubsonicInflow>(subsonic_inflow, n_subsonic_inflow, subsonic_inflow_idx, subsonic_inflow_info, species,
+                              parameter);
+  register_bc<Wall>(wall, n_wall, wall_idx, wall_info, species, parameter);
+  register_bc<Symmetry>(symmetry, n_symmetry, symmetry_idx, symmetry_info, species, parameter);
   register_bc<Outflow>(outflow, n_outflow, outflow_idx, outflow_info, species, parameter);
 
   link_bc_to_boundaries(mesh, field);
@@ -225,6 +258,13 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
       i_outflow[i][j] = 0;
     }
   }
+  auto **i_subsonic_inflow = new integer *[n_subsonic_inflow];
+  for (size_t i = 0; i < n_subsonic_inflow; i++) {
+    i_subsonic_inflow[i] = new integer[n_block];
+    for (integer j = 0; j < n_block; j++) {
+      i_subsonic_inflow[i][j] = 0;
+    }
+  }
 
   // We first count how many faces corresponds to a given boundary condition
   for (integer i = 0; i < n_block; i++) {
@@ -233,6 +273,8 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
     count_boundary_of_type_bc(mesh[i].boundary, n_farfield, i_farfield, i, n_block, farfield_info);
     count_boundary_of_type_bc(mesh[i].boundary, n_inflow, i_inflow, i, n_block, inflow_info);
     count_boundary_of_type_bc(mesh[i].boundary, n_outflow, i_outflow, i, n_block, outflow_info);
+    count_boundary_of_type_bc(mesh[i].boundary, n_subsonic_inflow, i_subsonic_inflow, i, n_block,
+                              subsonic_inflow_info);
   }
   for (size_t l = 0; l < n_wall; l++) {
     wall_info[l].boundary = new int2[wall_info[l].n_boundary];
@@ -249,6 +291,9 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
   for (size_t l = 0; l < n_outflow; l++) {
     outflow_info[l].boundary = new int2[outflow_info[l].n_boundary];
   }
+  for (size_t l=0; l<n_subsonic_inflow; ++l) {
+    subsonic_inflow_info[l].boundary = new int2[subsonic_inflow_info[l].n_boundary];
+  }
 
   const auto ngg{mesh[0].ngg};
   for (auto i = 0; i < n_block; i++) {
@@ -257,6 +302,7 @@ void DBoundCond::link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) co
     link_boundary_and_condition(mesh[i].boundary, farfield_info, n_farfield, i_farfield, i);
     link_boundary_and_condition(mesh[i].boundary, inflow_info, n_inflow, i_inflow, i);
     link_boundary_and_condition(mesh[i].boundary, outflow_info, n_outflow, i_outflow, i);
+    link_boundary_and_condition(mesh[i].boundary, subsonic_inflow_info, n_subsonic_inflow, i_subsonic_inflow, i);
   }
   for (auto i = 0; i < n_block; i++) {
     for (size_t l = 0; l < n_wall; l++) {
@@ -367,6 +413,19 @@ void FarField::copy_to_gpu(FarField *d_farfield, Species &spec, const Parameter 
   cudaMemcpy(sv, h_sv, n_scalar * sizeof(real), cudaMemcpyHostToDevice);
 
   cudaMemcpy(d_farfield, this, sizeof(FarField), cudaMemcpyHostToDevice);
+}
+
+void SubsonicInflow::copy_to_gpu(cfd::SubsonicInflow *d_inflow, cfd::Species &spec, const cfd::Parameter &parameter) {
+  const integer n_scalar{parameter.get_int("n_scalar")};
+  real *h_sv = new real[n_scalar];
+  for (integer l = 0; l < n_scalar; ++l) {
+    h_sv[l] = sv[l];
+  }
+  delete[]sv;
+  cudaMalloc(&sv, n_scalar * sizeof(real));
+  cudaMemcpy(sv, h_sv, n_scalar * sizeof(real), cudaMemcpyHostToDevice);
+
+  cudaMemcpy(d_inflow, this, sizeof(FarField), cudaMemcpyHostToDevice);
 }
 } // cfd
 #endif
