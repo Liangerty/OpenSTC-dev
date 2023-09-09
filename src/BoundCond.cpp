@@ -275,7 +275,7 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
 
 cfd::SubsonicInflow::SubsonicInflow(const std::string &inflow_name, cfd::Parameter &parameter) {
   const integer n_spec{parameter.get_int("n_spec")};
-  if (n_spec>0){
+  if (n_spec > 0) {
     printf("Subsonic inflow boundary condition does not support multi-species simulation.\n");
     MpiParallel::exit();
   }
@@ -315,5 +315,26 @@ cfd::SubsonicInflow::SubsonicInflow(const std::string &inflow_name, cfd::Paramet
         sv[n_spec + 1] = parameter.get_real("rho_inf") * sv[n_spec] / mut;
       }
     }
+  }
+}
+
+cfd::BackPressure::BackPressure(const std::string &name, cfd::Parameter &parameter) {
+  const integer n_spec{parameter.get_int("n_spec")};
+  if (n_spec > 0) {
+    printf("Subsonic inflow boundary condition does not support multi-species simulation.\n");
+    MpiParallel::exit();
+  }
+
+  auto &info = parameter.get_struct(name);
+  label = std::get<integer>(info.at("label"));
+
+  if (info.find("pressure") != info.end()) pressure = std::get<real>(info.at("pressure"));
+  if (pressure < 0) {
+    real p_pRef{1};
+    if (info.find("p_pRef_ratio") != info.end()) p_pRef = std::get<real>(info.at("p_pRef_ratio"));
+    else {
+      printf("Back pressure boundary condition does not specify pressure, is set as 1 in default.\n");
+    }
+    pressure = p_pRef * parameter.get_real("p_inf");
   }
 }

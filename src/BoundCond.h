@@ -91,7 +91,7 @@ struct FarField {
 };
 
 /**
- * @brief Subsonic inflow boundary condition
+ * @brief Subsonic inflow boundary condition, default label is 7
  * @details This is the subsonic inflow boundary condition.
  * @note We need to specify the ratio of total pressure and reference pressure, the ratio of total temperature and reference temperature, and the velocity direction in u, v, and w.
  * The implementation references the Fun3D manual and the CFL3D code.
@@ -116,6 +116,19 @@ struct SubsonicInflow {
 //  real mw = mw_air;
 //  real viscosity = 0;
   real mut = 0;
+};
+
+/**
+ * @brief Back pressure boundary condition, default label is 9
+ * @details This boundary condition specifies the back pressure at the outlet.
+ * @note This boundary condition is only used in the subsonic flow simulation, which you make sure that the outflow is subsonic.
+ * All quantities except pressure is extrapolated from the interior, while the pressure is specified by the user as the back pressure.
+ */
+struct BackPressure {
+  explicit BackPressure(const std::string &name, cfd::Parameter &parameter);
+
+  integer label = 9;
+  real pressure = -1;
 };
 
 }

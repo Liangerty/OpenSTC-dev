@@ -26,19 +26,21 @@ struct DBoundCond {
   template<MixtureModel mix_model, TurbMethod turb_method>
   void apply_boundary_conditions(const Block &block, Field &field, DParameter *param) const;
 
-  integer n_wall = 0, n_symmetry = 0, n_inflow = 0, n_outflow = 0, n_farfield = 0, n_subsonic_inflow = 0;
+  integer n_wall = 0, n_symmetry = 0, n_inflow = 0, n_outflow = 0, n_farfield = 0, n_subsonic_inflow = 0, n_back_pressure = 0;
   BCInfo *wall_info = nullptr;
   BCInfo *symmetry_info = nullptr;
   BCInfo *inflow_info = nullptr;
   BCInfo *outflow_info = nullptr;
   BCInfo *farfield_info = nullptr;
   BCInfo *subsonic_inflow_info = nullptr;
+  BCInfo *back_pressure_info = nullptr;
   Wall *wall = nullptr;
   Symmetry *symmetry = nullptr;
   Inflow *inflow = nullptr;
   Outflow *outflow = nullptr;
   FarField *farfield = nullptr;
   SubsonicInflow *subsonic_inflow = nullptr;
+  BackPressure *back_pressure = nullptr;
 };
 
 void count_boundary_of_type_bc(const std::vector<Boundary> &boundary, integer n_bc, integer **sep, integer blk_idx,
@@ -234,15 +236,6 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
 
   auto &bv = zone->bv;
 
-  // Interpolate the boundary value from internal nodes
-  const integer ii1{i - dir[0]}, ij1{j - dir[1]}, ik1{k - dir[2]};
-  const integer ii2{i - 2 * dir[0]}, ij2{j - 2 * dir[1]}, ik2{k - 2 * dir[2]};
-  const real rho_b = 2 * bv(ii1, ij1, ik1, 0) - bv(ii2, ij2, ik2, 0);
-  const real u_b = 2 * bv(ii1, ij1, ik1, 1) - bv(ii2, ij2, ik2, 1);
-  const real v_b = 2 * bv(ii1, ij1, ik1, 2) - bv(ii2, ij2, ik2, 2);
-  const real w_b = 2 * bv(ii1, ij1, ik1, 3) - bv(ii2, ij2, ik2, 3);
-  const real p_b = 2 * bv(ii1, ij1, ik1, 4) - bv(ii2, ij2, ik2, 4);
-  const real t_b = 2 * bv(ii1, ij1, ik1, 5) - bv(ii2, ij2, ik2, 5);
   real nx{zone->metric(i, j, k)(b.face + 1, 1)},
       ny{zone->metric(i, j, k)(b.face + 1, 2)},
       nz{zone->metric(i, j, k)(b.face + 1, 3)};
@@ -250,6 +243,7 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
   nx *= grad_n_inv;
   ny *= grad_n_inv;
   nz *= grad_n_inv;
+  const real u_b{bv(i, j, k, 1)}, v_b{bv(i, j, k, 2)}, w_b{bv(i, j, k, 3)};
   const real u_face{nx * u_b + ny * v_b + nz * w_b};
 
   // Interpolate the scalar values from internal nodes, which are used to compute gamma, after which, acoustic speed.
@@ -259,17 +253,20 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
   real sv_b[MAX_SPEC_NUMBER + 2], cp[MAX_SPEC_NUMBER];
   if constexpr (mix_model != MixtureModel::Air) {
     for (integer l = 0; l < n_scalar; ++l) {
-      sv_b[l] = 2 * sv(ii1, ij1, ik1, l) - sv(ii2, ij2, ik2, l);
+//      sv_b[l] = 2 * sv(ii1, ij1, ik1, l) - sv(ii2, ij2, ik2, l);
+      sv_b[l] = sv(i, j, k, l);
     }
-    compute_cp(t_b, cp, param);
-    real cp_tot{0}, mw_inv{0};
+    gamma_b=zone->gamma(i,j,k);
+//    compute_cp(bv(i, j, k, 5), cp, param);
+    real mw_inv{0};//cp_tot{0},
     for (integer l = 0; l < n_spec; ++l) {
-      cp_tot += cp[l] * sv_b[l];
+//      cp_tot += cp[l] * sv_b[l];
       mw_inv += sv_b[l] / param->mw[l];
     }
     mw = 1.0 / mw_inv;
-    gamma_b = cp_tot / (cp_tot - R_u * mw_inv);
+//    gamma_b = cp_tot / (cp_tot - R_u * mw_inv);
   }
+  const real p_b{bv(i, j, k, 4)}, rho_b{bv(i, j, k, 0)};
   const real a_b{sqrt(gamma_b * p_b / rho_b)};
   const real mach_b{u_face / a_b};
 
@@ -341,7 +338,7 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     const real u_inf{farfield->u * nx + farfield->v * ny + farfield->w * nz};
     const real riemann_neg{u_inf - 2 * farfield->acoustic_speed / (farfield->specific_heat_ratio - 1)};
 
-    real s_b, density, pressure, temperature, u, v, w;
+    real s_b, density, pressure, temperature, u, v, w, mut;
     const real Un{0.5 * (riemann_pos + riemann_neg)};
     if constexpr (mix_model == MixtureModel::Air) {
       const real c_b{0.25 * (gamma_air - 1) * (riemann_pos - riemann_neg)};
@@ -351,12 +348,20 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
         u = farfield->u + (Un - u_inf) * nx;
         v = farfield->v + (Un - u_inf) * ny;
         w = farfield->w + (Un - u_inf) * nz;
+        for (int l = 0; l < n_scalar; ++l) {
+          sv_b[l] = farfield->sv[l];
+        }
+        mut = farfield->mut;
       } else {
         // outflow
         s_b = p_b / pow(rho_b, gamma_air);
         u = u_b + (Un - u_face) * nx;
         v = v_b + (Un - u_face) * ny;
         w = w_b + (Un - u_face) * nz;
+//        for (int l = 0; l < n_scalar; ++l) {
+//          sv_b[l] = sv(i, j, k, l);
+//        }
+        mut = zone->mut(i, j, k);
       }
       density = pow(c_b * c_b / (gamma_air * s_b), 1 / (gamma_air - 1));
       pressure = density * c_b * c_b / gamma_air;
@@ -372,12 +377,14 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
           sv_b[l] = farfield->sv[l];
         }
         mw = farfield->mw;
+        mut = farfield->mut;
       } else {
         // outflow
         u = u_b + (Un - u_face) * nx;
         v = v_b + (Un - u_face) * ny;
         w = w_b + (Un - u_face) * nz;
         // When this is outflow, the sv_b should be interpolated from internal points, which has been computed above
+        mut = zone->mut(i, j, k);
       }
       real gamma{gamma_air}, err{1}, gamma_last{gamma_air};
       while (err > 1e-4) {
@@ -416,7 +423,7 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
       cv(i, j, k, 5 + l) = density * sv_b[l];
     }
     if constexpr (turb_method == TurbMethod::RANS) {
-      zone->mut(i, j, k) = farfield->mut;
+      zone->mut(i, j, k) = mut;
     }
     cv(i, j, k, 0) = density;
     cv(i, j, k, 1) = density * u;
@@ -436,7 +443,7 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
         sv(gi, gj, gk, l) = sv_b[l];
       }
       if constexpr (turb_method == TurbMethod::RANS) {
-        zone->mut(gi, gj, gk) = farfield->mut;
+        zone->mut(gi, gj, gk) = mut;
       }
     }
   }
@@ -570,12 +577,6 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DParameter *param, integer i_face) {
-//  if constexpr (mix_model != MixtureModel::Air) {
-//    printf("Subsonic inflow is only available for air mixture model!\n");
-//    MpiParallel::exit();
-//    return;
-//  }
-
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
   const auto &b = zone->boundary[i_face];
@@ -642,7 +643,7 @@ __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DPara
         for (int l = 0; l < n_scalar; ++l) {
           sv(gi, gj, gk, l) = sv(i, j, k, l);
         }
-      }else{
+      } else {
         // The normal velocity points into the domain, which means the value should be acquired from the boundary.
         for (int l = 0; l < n_scalar; ++l) {
           sv(gi, gj, gk, l) = inflow->sv[l];
@@ -656,10 +657,41 @@ __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DPara
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method>
+__global__ void apply_back_pressure(DZone *zone, BackPressure *backPressure, DParameter *param, integer i_face) {
+  const integer ngg = zone->ngg;
+  integer dir[]{0, 0, 0};
+  const auto &b = zone->boundary[i_face];
+  dir[b.face] = b.direction;
+  auto range_start = b.range_start, range_end = b.range_end;
+  integer i = range_start[0] + (integer) (blockDim.x * blockIdx.x + threadIdx.x);
+  integer j = range_start[1] + (integer) (blockDim.y * blockIdx.y + threadIdx.y);
+  integer k = range_start[2] + (integer) (blockDim.z * blockIdx.z + threadIdx.z);
+  if (i > range_end[0] || j > range_end[1] || k > range_end[2]) return;
+
+  auto &bv = zone->bv;
+  auto &sv = zone->sv;
+
+  for (integer g = 1; g <= ngg; ++g) {
+    const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
+    for (integer l = 0; l < 4; ++l) {
+      bv(gi, gj, gk, l) = bv(i, j, k, l);
+    }
+    bv(gi, gj, gk, 4) = backPressure->pressure;
+    bv(gi, gj, gk, 5) = bv(i, j, k, 5);
+    for (integer l = 0; l < zone->n_scal; ++l) {
+      sv(gi, gj, gk, l) = sv(i, j, k, l);
+    }
+    if constexpr (turb_method == TurbMethod::RANS) {
+      zone->mut(gi, gj, gk) = zone->mut(i, j, k);
+    }
+  }
+}
+
+template<MixtureModel mix_model, TurbMethod turb_method>
 void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DParameter *param) const {
   // Boundary conditions are applied in the order of priority, which with higher priority is applied later.
   // Finally, the communication between faces will be carried out after these bc applied
-  // Priority: (-1 - inner faces >) 2-wall > 3-symmetry > 5-inflow = 7 - subsonic inflow > 6-outflow > 4-farfield
+  // Priority: (-1 - inner faces >) 2-wall > 3-symmetry > 5-inflow = 7-subsonic inflow > 6-outflow = 9-back pressure > 4-farfield
 
   // 4-farfield
   for (size_t l = 0; l < n_farfield; ++l) {
@@ -700,6 +732,25 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
       apply_outflow<turb_method> <<<BPG, TPB>>>(field.d_ptr, i_face);
+    }
+  }
+  for (size_t l = 0; l < n_back_pressure; l++) {
+    const auto nb = back_pressure_info[l].n_boundary;
+    for (size_t i = 0; i < nb; i++) {
+      auto [i_zone, i_face] = back_pressure_info[l].boundary[i];
+      if (i_zone != block.block_id) {
+        continue;
+      }
+      const auto &h_f = block.boundary[i_face];
+      const auto ngg = block.ngg;
+      uint tpb[3], bpg[3];
+      for (size_t j = 0; j < 3; j++) {
+        auto n_point = h_f.range_end[j] - h_f.range_start[j] + 1;
+        tpb[j] = n_point <= (2 * ngg + 1) ? 1 : 16;
+        bpg[j] = (n_point - 1) / tpb[j] + 1;
+      }
+      dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
+      apply_back_pressure<mix_model, turb_method> <<<BPG, TPB>>>(field.d_ptr, &back_pressure[l], param, i_face);
     }
   }
 
