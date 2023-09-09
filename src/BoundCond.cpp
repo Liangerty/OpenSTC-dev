@@ -157,9 +157,15 @@ cfd::Wall::Wall(const std::map<std::string, std::variant<std::string, integer, r
   }
 }
 
-cfd::Outflow::Outflow(integer type_label) : label(type_label) {}
+cfd::Symmetry::Symmetry(const std::string &inflow_name, cfd::Parameter &parameter) {
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+}
 
-cfd::Symmetry::Symmetry(integer type_label) : label(type_label) {}
+cfd::Outflow::Outflow(const std::string &inflow_name, cfd::Parameter &parameter) {
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+}
 
 cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
   auto &info = parameter.get_struct("farfield");

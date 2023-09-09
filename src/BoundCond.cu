@@ -10,15 +10,32 @@ void register_bc(BCType *&bc, int n_bc, std::vector<integer> &indices, BCInfo *&
   if (n_bc <= 0) {
     return;
   }
+
   cudaMalloc(&bc, n_bc * sizeof(BCType));
   bc_info = new BCInfo[n_bc];
-  integer counter = 0;
-  while (counter < n_bc) {
-    BCType bctemp(indices[counter]);
-    bc_info[counter].label = indices[counter];
-    cudaMemcpy(&(bc[counter]), &bctemp, sizeof(BCType), cudaMemcpyHostToDevice);
-    ++counter;
+  for (integer i = 0; i < n_bc; ++i) {
+    const integer index = indices[i];
+    for (auto &bc_name: parameter.get_string_array("boundary_conditions")) {
+      auto &this_bc = parameter.get_struct(bc_name);
+      integer bc_label = std::get<integer>(this_bc.at("label"));
+      if (index != bc_label) {
+        continue;
+      }
+      bc_info[i].label = bc_label;
+      BCType bound_cond(bc_name, parameter);
+      cudaMemcpy(&(bc[i]), &bound_cond, sizeof(BCType), cudaMemcpyHostToDevice);
+      break;
+    }
   }
+//  cudaMalloc(&bc, n_bc * sizeof(BCType));
+//  bc_info = new BCInfo[n_bc];
+//  integer counter = 0;
+//  while (counter < n_bc) {
+//    BCType bctemp(indices[counter]);
+//    bc_info[counter].label = indices[counter];
+//    cudaMemcpy(&(bc[counter]), &bctemp, sizeof(BCType), cudaMemcpyHostToDevice);
+//    ++counter;
+//  }
 }
 
 template<>

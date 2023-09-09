@@ -55,13 +55,13 @@ struct Wall {
 };
 
 struct Outflow {
-  explicit Outflow(integer type_label);
+  explicit Outflow(const std::string &inflow_name, cfd::Parameter &parameter);
 
   integer label = 6;
 };
 
 struct Symmetry {
-  explicit Symmetry(integer type_label);
+  explicit Symmetry(const std::string &inflow_name, cfd::Parameter &parameter);
 
   integer label = 3;
 };
