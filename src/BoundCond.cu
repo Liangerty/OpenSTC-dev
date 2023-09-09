@@ -478,7 +478,7 @@ void SubsonicInflow::copy_to_gpu(cfd::SubsonicInflow *d_inflow, cfd::Species &sp
   cudaMalloc(&sv, n_scalar * sizeof(real));
   cudaMemcpy(sv, h_sv, n_scalar * sizeof(real), cudaMemcpyHostToDevice);
 
-  cudaMemcpy(d_inflow, this, sizeof(FarField), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_inflow, this, sizeof(SubsonicInflow), cudaMemcpyHostToDevice);
 }
 } // cfd
 #endif

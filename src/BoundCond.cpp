@@ -244,6 +244,7 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
     // The density is not given, compute it from equation of state
     density = pressure * mw / (R_u * temperature);
   }
+  entropy = pressure / pow(density, specific_heat_ratio);
 
   if (parameter.get_int("turbulence_method") == 1) {
     // RANS simulation
