@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include "Mesh.h"
 #include "Field.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "FieldOperation.cuh"
 
 namespace cfd {

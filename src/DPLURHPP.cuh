@@ -2,7 +2,7 @@
 
 #include "Define.h"
 #include "Field.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "Constants.h"
 #include "Thermo.cuh"
 #include "SST.cuh"

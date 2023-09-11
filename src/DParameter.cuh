@@ -3,15 +3,18 @@
 #include "Parameter.h"
 #include "Define.h"
 #include "gxl_lib/Matrix.hpp"
+#include "gxl_lib/Array.hpp"
 
 namespace cfd {
 struct Species;
 struct Reaction;
+struct FlameletLib;
 
 struct DParameter {
   DParameter() = default;
 
-  explicit DParameter(Parameter &parameter, Species &species, Reaction &reaction);
+  explicit DParameter(cfd::Parameter &parameter, Species &species, Reaction *reaction,
+                      FlameletLib *flamelet_lib = nullptr);
 
   integer myid = 0;   // The process id of this process
 
@@ -54,6 +57,14 @@ struct DParameter {
   real *A2 = nullptr, *b2 = nullptr, *Ea2 = nullptr;
   ggxl::MatrixDyn<real> third_body_coeff;
   real *troe_alpha = nullptr, *troe_t3 = nullptr, *troe_t1 = nullptr, *troe_t2 = nullptr;
+
+  // Flamelet library info
+  integer n_z=0, n_zPrime = 0, n_chi = 0;
+  real* mix_frac= nullptr;
+  ggxl::MatrixDyn<real> zPrime, chi_min, chi_max;
+  ggxl::MatrixDyn<real> chi_min_j, chi_max_j;
+  ggxl::Array3D<real> chi_ave;
+  ggxl::VectorField3D<real> yk_lib;
 
 private:
   struct LimitFlow {

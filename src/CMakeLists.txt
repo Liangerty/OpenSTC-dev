@@ -5,14 +5,13 @@
 #     If larger mechanism is to be used, the variable should be modified to be larger or equal to the species number.
 #     However, the correctness, if the resource is available for the corresponding kernel may need to be tested.
 
-#add_subdirectory(flamelet)
-
 list(APPEND src_file
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
-  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.h DPLURHPP.cuh Driver.cu Driver.cuh
+  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
   Element.h Element.cpp
   Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h
+  FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
   ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
   Limiter.cuh
   main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu
@@ -68,5 +67,4 @@ target_link_libraries(openstc
   "$<$<CONFIG:Debug>:fmtd>"
   "$<$<CONFIG:Release>:fmt>"
   MPI::MPI_CXX
-#        flamelet
 )

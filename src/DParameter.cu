@@ -1,11 +1,14 @@
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "ChemData.h"
+#include "FlameletLib.cuh"
 
-cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reaction &reaction) :
+cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reaction *reaction,
+                            FlameletLib *flamelet_lib) :
     myid{parameter.get_int("myid")}, inviscid_scheme{parameter.get_int("inviscid_scheme")},
     reconstruction{parameter.get_int("reconstruction")}, limiter{parameter.get_int("limiter")},
     viscous_scheme{parameter.get_int("viscous_order")}, rans_model{parameter.get_int("RANS_model")},
-    turb_implicit{parameter.get_int("turb_implicit")}, compressibility_correction{parameter.get_int("compressibility_correction")},
+    turb_implicit{parameter.get_int("turb_implicit")},
+    compressibility_correction{parameter.get_int("compressibility_correction")},
     chemSrcMethod{parameter.get_int("chemSrcMethod")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
     gradPInDiffusionFlux{parameter.get_bool("gradPInDiffusionFlux")},
@@ -13,7 +16,9 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
   const auto &spec = species;
   n_spec = spec.n_spec;
   n_scalar = parameter.get_int("n_scalar");
-  n_reac = reaction.n_reac;
+  if (reaction != nullptr) {
+    n_reac = reaction->n_reac;
+  }
 
   // species info
   auto mem_sz = n_spec * sizeof(real);
@@ -50,38 +55,68 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
   Sc = parameter.get_real("schmidt_number");
 
   // reactions info
-  cudaMalloc(&reac_type, n_reac * sizeof(integer));
-  cudaMemcpy(reac_type, reaction.label.data(), n_reac * sizeof(integer), cudaMemcpyHostToDevice);
-  stoi_f.init_with_size(n_reac, n_spec);
-  cudaMemcpy(stoi_f.data(), reaction.stoi_f.data(), stoi_f.size() * sizeof(integer), cudaMemcpyHostToDevice);
-  stoi_b.init_with_size(n_reac, n_spec);
-  cudaMemcpy(stoi_b.data(), reaction.stoi_b.data(), stoi_b.size() * sizeof(integer), cudaMemcpyHostToDevice);
-  mem_sz = n_reac * sizeof(real);
-  cudaMalloc(&reac_order, n_reac * sizeof(integer));
-  cudaMemcpy(reac_order, reaction.order.data(), n_reac * sizeof(integer), cudaMemcpyHostToDevice);
-  cudaMalloc(&A, mem_sz);
-  cudaMemcpy(A, reaction.A.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&b, mem_sz);
-  cudaMemcpy(b, reaction.b.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&Ea, mem_sz);
-  cudaMemcpy(Ea, reaction.Ea.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&A2, mem_sz);
-  cudaMemcpy(A2, reaction.A2.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&b2, mem_sz);
-  cudaMemcpy(b2, reaction.b2.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&Ea2, mem_sz);
-  cudaMemcpy(Ea2, reaction.Ea2.data(), mem_sz, cudaMemcpyHostToDevice);
-  third_body_coeff.init_with_size(n_reac, n_spec);
-  cudaMemcpy(third_body_coeff.data(), reaction.third_body_coeff.data(), third_body_coeff.size() * sizeof(real),
-             cudaMemcpyHostToDevice);
-  cudaMalloc(&troe_alpha, mem_sz);
-  cudaMemcpy(troe_alpha, reaction.troe_alpha.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&troe_t3, mem_sz);
-  cudaMemcpy(troe_t3, reaction.troe_t3.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&troe_t1, mem_sz);
-  cudaMemcpy(troe_t1, reaction.troe_t1.data(), mem_sz, cudaMemcpyHostToDevice);
-  cudaMalloc(&troe_t2, mem_sz);
-  cudaMemcpy(troe_t2, reaction.troe_t2.data(), mem_sz, cudaMemcpyHostToDevice);
+  if (n_reac > 0) {
+    cudaMalloc(&reac_type, n_reac * sizeof(integer));
+    cudaMemcpy(reac_type, reaction->label.data(), n_reac * sizeof(integer), cudaMemcpyHostToDevice);
+    stoi_f.init_with_size(n_reac, n_spec);
+    cudaMemcpy(stoi_f.data(), reaction->stoi_f.data(), stoi_f.size() * sizeof(integer), cudaMemcpyHostToDevice);
+    stoi_b.init_with_size(n_reac, n_spec);
+    cudaMemcpy(stoi_b.data(), reaction->stoi_b.data(), stoi_b.size() * sizeof(integer), cudaMemcpyHostToDevice);
+    mem_sz = n_reac * sizeof(real);
+    cudaMalloc(&reac_order, n_reac * sizeof(integer));
+    cudaMemcpy(reac_order, reaction->order.data(), n_reac * sizeof(integer), cudaMemcpyHostToDevice);
+    cudaMalloc(&A, mem_sz);
+    cudaMemcpy(A, reaction->A.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&b, mem_sz);
+    cudaMemcpy(b, reaction->b.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&Ea, mem_sz);
+    cudaMemcpy(Ea, reaction->Ea.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&A2, mem_sz);
+    cudaMemcpy(A2, reaction->A2.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&b2, mem_sz);
+    cudaMemcpy(b2, reaction->b2.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&Ea2, mem_sz);
+    cudaMemcpy(Ea2, reaction->Ea2.data(), mem_sz, cudaMemcpyHostToDevice);
+    third_body_coeff.init_with_size(n_reac, n_spec);
+    cudaMemcpy(third_body_coeff.data(), reaction->third_body_coeff.data(), third_body_coeff.size() * sizeof(real),
+               cudaMemcpyHostToDevice);
+    cudaMalloc(&troe_alpha, mem_sz);
+    cudaMemcpy(troe_alpha, reaction->troe_alpha.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&troe_t3, mem_sz);
+    cudaMemcpy(troe_t3, reaction->troe_t3.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&troe_t1, mem_sz);
+    cudaMemcpy(troe_t1, reaction->troe_t1.data(), mem_sz, cudaMemcpyHostToDevice);
+    cudaMalloc(&troe_t2, mem_sz);
+    cudaMemcpy(troe_t2, reaction->troe_t2.data(), mem_sz, cudaMemcpyHostToDevice);
+  }
+
+  if (flamelet_lib != nullptr) {
+    n_z = flamelet_lib->n_z;
+    n_zPrime = flamelet_lib->n_zPrime;
+    n_chi = flamelet_lib->n_chi;
+
+    mem_sz = (n_z + 1) * sizeof(real);
+    cudaMalloc(&mix_frac, mem_sz);
+    cudaMemcpy(mix_frac, flamelet_lib->z.data(), mem_sz, cudaMemcpyHostToDevice);
+    zPrime.init_with_size(n_zPrime + 1, n_z + 1);
+    cudaMemcpy(zPrime.data(), flamelet_lib->zPrime.data(), zPrime.size() * sizeof(real), cudaMemcpyHostToDevice);
+    chi_min.init_with_size(n_zPrime + 1, n_z + 1);
+    cudaMemcpy(chi_min.data(), flamelet_lib->chi_min.data(), chi_min.size() * sizeof(real), cudaMemcpyHostToDevice);
+    chi_max.init_with_size(n_zPrime + 1, n_z + 1);
+    cudaMemcpy(chi_max.data(), flamelet_lib->chi_max.data(), chi_max.size() * sizeof(real), cudaMemcpyHostToDevice);
+    chi_min_j.init_with_size(n_zPrime + 1, n_z + 1);
+    cudaMemcpy(chi_min_j.data(), flamelet_lib->chi_min_j.data(), chi_min_j.size() * sizeof(integer),
+               cudaMemcpyHostToDevice);
+    chi_max_j.init_with_size(n_zPrime + 1, n_z + 1);
+    cudaMemcpy(chi_max_j.data(), flamelet_lib->chi_max_j.data(), chi_max_j.size() * sizeof(integer),
+               cudaMemcpyHostToDevice);
+
+    chi_ave.allocate_memory(n_chi, n_zPrime + 1, n_z + 1, 0);
+    cudaMemcpy(chi_ave.data(), flamelet_lib->chi_ave.data(), sizeof(real) * chi_ave.size(), cudaMemcpyHostToDevice);
+    yk_lib.allocate_memory(n_spec, n_chi, n_zPrime + 1, n_z + 1, 0);
+    cudaMemcpy(yk_lib.data(), flamelet_lib->yk.data(), sizeof(real) * yk_lib.size() * (n_z + 1),
+               cudaMemcpyHostToDevice);
+  }
 
   memset(limit_flow.ll, 0, sizeof(real) * LimitFlow::max_n_var);
   memset(limit_flow.ul, 0, sizeof(real) * LimitFlow::max_n_var);

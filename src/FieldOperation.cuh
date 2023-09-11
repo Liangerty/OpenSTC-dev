@@ -4,7 +4,7 @@
 
 #include "Define.h"
 #include "Field.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "Thermo.cuh"
 #include "Constants.h"
 #include "Transport.cuh"

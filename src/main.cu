@@ -3,6 +3,7 @@
 #include "Parameter.h"
 #include "Mesh.h"
 #include "Driver.cuh"
+#include "FlameletDriver.cuh"
 
 int main(int argc, char *argv[]) {
   cfd::MpiParallel mpi_parallel(&argc, &argv);
@@ -28,6 +29,11 @@ int main(int argc, char *argv[]) {
         cfd::Driver<MixtureModel::FR, TurbMethod::RANS> driver(parameter, mesh);
         driver.initialize_computation();
         driver.simulate();
+      } else if (reaction == 2) {
+        // Flamelet model
+        cfd::Driver<MixtureModel::FL, TurbMethod::RANS> driver(parameter, mesh);
+//        driver.initialize_computation();
+//        driver.simulate();
       } else {
         // Pure mixing among species
         cfd::Driver<MixtureModel::Mixture, TurbMethod::RANS> driver(parameter, mesh);

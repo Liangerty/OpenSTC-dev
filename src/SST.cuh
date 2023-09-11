@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Define.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 
 namespace cfd {
 struct DZone;

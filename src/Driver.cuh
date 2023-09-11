@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Define.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "gxl_lib/Time.h"
 #include "ChemData.h"
 #include "Field.h"
@@ -18,8 +18,6 @@ struct Driver {
   void simulate();
 
 //private:
-
-  void write_reference_state();
 
   void acquire_wall_distance();
 
@@ -46,6 +44,8 @@ public:
   std::array<real, 4> res{1, 1, 1, 1};
   std::array<real, 4> res_scale{1, 1, 1, 1};
 };
+
+void write_reference_state(const Parameter& parameter);
 
 template<integer N>
 __global__ void reduction_of_dv_squared(real *arr_to_sum, integer size);

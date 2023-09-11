@@ -1,5 +1,5 @@
 #include "Thermo.cuh"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "Constants.h"
 
 __device__ void cfd::compute_enthalpy(real t, real *enthalpy, const cfd::DParameter *param) {

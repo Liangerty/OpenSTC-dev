@@ -3,7 +3,7 @@
 #include "Define.h"
 #include "Reconstruction.cuh"
 #include "Constants.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "Thermo.cuh"
 
 namespace cfd {

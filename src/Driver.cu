@@ -35,28 +35,11 @@ Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
     field[blk].setup_device_memory(parameter);
   }
   bound_cond.initialize_bc_on_GPU(mesh_, field, spec, parameter);
-  DParameter d_param(parameter, spec, reac);
+  DParameter d_param(parameter, spec, &reac);
   cudaMalloc(&param, sizeof(DParameter));
   cudaMemcpy(param, &d_param, sizeof(DParameter), cudaMemcpyHostToDevice);
 
-  write_reference_state();
-}
-
-template<MixtureModel mix_model, TurbMethod turb_method>
-void Driver<mix_model, turb_method>::write_reference_state() {
-  if (parameter.get_int("myid") == 0) {
-    std::ofstream ref_state("output/message/reference_state.txt", std::ios::trunc);
-    ref_state << "Reference state\n";
-    ref_state << "rho_inf = " << parameter.get_real("rho_inf") << '\n';
-    ref_state << "v_inf = " << parameter.get_real("v_inf") << '\n';
-    ref_state << "p_inf = " << parameter.get_real("p_inf") << '\n';
-    ref_state << "T_inf = " << parameter.get_real("T_inf") << '\n';
-    ref_state << "M_inf = " << parameter.get_real("M_inf") << '\n';
-    ref_state << "Re_unit = " << parameter.get_real("Re_unit") << '\n';
-    ref_state << "mu_inf = " << parameter.get_real("mu_inf") << '\n';
-    ref_state << "acoustic_speed_inf = " << parameter.get_real("v_inf") / parameter.get_real("M_inf") << '\n';
-    ref_state.close();
-  }
+  write_reference_state(parameter);
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method>
@@ -401,6 +384,22 @@ __global__ void compute_wall_distance(const real *wall_point_coor, DZone *zone, 
     }
   }
   wall_dist = std::sqrt(wall_dist);
+}
+
+void write_reference_state(const Parameter &parameter) {
+  if (parameter.get_int("myid") == 0) {
+    std::ofstream ref_state("output/message/reference_state.txt", std::ios::trunc);
+    ref_state << "Reference state\n";
+    ref_state << "rho_inf = " << parameter.get_real("rho_inf") << '\n';
+    ref_state << "v_inf = " << parameter.get_real("v_inf") << '\n';
+    ref_state << "p_inf = " << parameter.get_real("p_inf") << '\n';
+    ref_state << "T_inf = " << parameter.get_real("T_inf") << '\n';
+    ref_state << "M_inf = " << parameter.get_real("M_inf") << '\n';
+    ref_state << "Re_unit = " << parameter.get_real("Re_unit") << '\n';
+    ref_state << "mu_inf = " << parameter.get_real("mu_inf") << '\n';
+    ref_state << "acoustic_speed_inf = " << parameter.get_real("v_inf") / parameter.get_real("M_inf") << '\n';
+    ref_state.close();
+  }
 }
 
 // Instantiate all possible drivers
