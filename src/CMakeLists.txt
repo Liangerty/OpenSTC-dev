@@ -5,6 +5,8 @@
 #     If larger mechanism is to be used, the variable should be modified to be larger or equal to the species number.
 #     However, the correctness, if the resource is available for the corresponding kernel may need to be tested.
 
+#add_subdirectory(flamelet)
+
 list(APPEND src_file
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
@@ -17,7 +19,7 @@ list(APPEND src_file
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
   Reconstruction.cu Reconstruction.cuh
-  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu
+  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu
   ViscousScheme.cuh
 
@@ -66,4 +68,5 @@ target_link_libraries(openstc
   "$<$<CONFIG:Debug>:fmtd>"
   "$<$<CONFIG:Release>:fmt>"
   MPI::MPI_CXX
+#        flamelet
 )

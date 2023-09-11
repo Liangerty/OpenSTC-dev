@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
 
   bool species = parameter.get_bool("species");
   bool turbulent_laminar = parameter.get_bool("turbulence");
-  bool reaction = parameter.get_bool("reaction");
+  integer reaction = parameter.get_int("reaction");
   integer turbulent_method = parameter.get_int("turbulence_method");
   if (!turbulent_laminar) {
     turbulent_method = 0;
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     // Multiple species
     if (turbulent_method == 1) {
       // RANS
-      if (reaction) {
+      if (reaction == 1) {
         // Finite rate chemistry
         cfd::Driver<MixtureModel::FR, TurbMethod::RANS> driver(parameter, mesh);
         driver.initialize_computation();
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
       }
     } else {
       // Laminar
-      if (reaction) {
+      if (reaction == 1) {
         // Finite rate chemistry
         cfd::Driver<MixtureModel::FR, TurbMethod::Laminar> driver(parameter, mesh);
         driver.initialize_computation();

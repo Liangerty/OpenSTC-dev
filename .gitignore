@@ -498,3 +498,10 @@
 /output/wall/friction_heatflux.dat
 /output/field/symmetry.plt
 /output/message/reference_state.txt
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/codemodel-v2-40faf15d8cce1ae29c67.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/index-2023-09-11T05-55-09-0041.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/target-openstc-Debug-6d204bdf567cac65ad63.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/codemodel-v2-4903f169ec20990b6612.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/index-2023-09-11T05-55-08-0786.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/target-openstc-Release-5b01456379dc913e2613.json
+/input_files/chemistry/combustion_mechanism_copy.inp

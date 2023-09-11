@@ -102,6 +102,12 @@ public:
 //    return &val[l * sz];
   }
 
+  const T *operator[](int l) const {
+    static_assert(major == Major::ColMajor);
+    return val + l * sz;
+//    return &val[l * sz];
+  }
+
   T *data() { return val; }
 
   auto size() { return sz; }
@@ -159,8 +165,19 @@ public:
       return data_[k * disp1 + j * disp2 + i + dispt + l * sz];
     }
   }
+  const T &operator()(const int i, const int j, const int k, const int l) const {
+    if constexpr (major == Major::RowMajor) {
+      return data_[i * disp1 + j * disp2 + k * n4 + dispt + l];
+    } else {
+      return data_[k * disp1 + j * disp2 + i + dispt + l * sz];
+    }
+  }
 
   T *operator[](int l) {
+    static_assert(major == Major::ColMajor);
+    return &data_[l * sz];
+  }
+  const T *operator[](int l) const {
     static_assert(major == Major::ColMajor);
     return &data_[l * sz];
   }

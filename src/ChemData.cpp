@@ -416,7 +416,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   if (!parameter.get_bool("species")) {
     return;
   }
-  if (!parameter.get_bool("reaction")) {
+  if (parameter.get_int("reaction") != 1) {
     return;
   }
   std::ifstream file("./input_files/" + parameter.get_string("mechanism_file"));
@@ -427,7 +427,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   std::string key{};
   line >> key >> key;
   if (!key.empty()) {
-    // The units are not default units, we need some convertion here.
+    // The units are not default units, we need some conversion here.
     // Currently, we just use the default ones, here is blanked.
   }
 

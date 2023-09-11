@@ -17,13 +17,13 @@ struct Driver {
 
   void simulate();
 
-private:
+//private:
 
   void write_reference_state();
 
   void acquire_wall_distance();
 
-  void steady_simulation();
+//  void steady_simulation();
 
   real compute_residual(integer step);
 
