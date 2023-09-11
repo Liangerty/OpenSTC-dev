@@ -2,6 +2,7 @@
 #include "Transport.cuh"
 #include "gxl_lib/MyString.h"
 #include <cmath>
+#include "Parallel.h"
 
 cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &parameter) {
   auto &info = parameter.get_struct(inflow_name);
@@ -77,6 +78,7 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
     // The density is not given, compute it from equation of state
     density = pressure * mw / (R_u * temperature);
   }
+  reynolds_number = density * velocity / viscosity;
 
   if (parameter.get_int("turbulence_method") == 1) {
     // RANS simulation
@@ -93,10 +95,14 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
   }
 
   // This should be re-considered later
-  if (inflow_name == "freestream") {
+  if (inflow_name == parameter.get_string("reference_state")) {
     parameter.update_parameter("rho_inf", density);
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
+    parameter.update_parameter("T_inf", temperature);
+    parameter.update_parameter("M_inf", mach);
+    parameter.update_parameter("Re_unit", reynolds_number);
+    parameter.update_parameter("mu_inf", viscosity);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];
@@ -155,9 +161,15 @@ cfd::Wall::Wall(const std::map<std::string, std::variant<std::string, integer, r
   }
 }
 
-cfd::Outflow::Outflow(integer type_label) : label(type_label) {}
+cfd::Symmetry::Symmetry(const std::string &inflow_name, cfd::Parameter &parameter) {
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+}
 
-cfd::Symmetry::Symmetry(integer type_label) : label(type_label) {}
+cfd::Outflow::Outflow(const std::string &inflow_name, cfd::Parameter &parameter) {
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+}
 
 cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
   auto &info = parameter.get_struct("farfield");
@@ -242,6 +254,7 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
     // The density is not given, compute it from equation of state
     density = pressure * mw / (R_u * temperature);
   }
+  entropy = pressure / pow(density, specific_heat_ratio);
 
   if (parameter.get_int("turbulence_method") == 1) {
     // RANS simulation
@@ -258,14 +271,84 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
   }
 
   // This should be re-considered later
-//  if (inflow_name == "freestream") {
+  if (parameter.get_string("reference_state") == "farfield") {
     parameter.update_parameter("rho_inf", density);
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
+    parameter.update_parameter("T_inf", temperature);
+    parameter.update_parameter("M_inf", mach);
+    parameter.update_parameter("Re_unit", reynolds_number);
+    parameter.update_parameter("mu_inf", viscosity);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];
     }
     parameter.update_parameter("sv_inf", sv_inf);
-//  }
+  }
+}
+
+cfd::SubsonicInflow::SubsonicInflow(const std::string &inflow_name, cfd::Parameter &parameter) {
+  const integer n_spec{parameter.get_int("n_spec")};
+  if (n_spec > 0) {
+    printf("Subsonic inflow boundary condition does not support multi-species simulation.\n");
+    MpiParallel::exit();
+  }
+
+  auto &info = parameter.get_struct(inflow_name);
+  label = std::get<integer>(info.at("label"));
+
+  const real pt_pRef{std::get<real>(info.at("pt_pRef_ratio"))};
+  const real Tt_TRef{std::get<real>(info.at("Tt_TRef_ratio"))};
+  const real pRef{parameter.get_real("p_inf")};
+  const real TRef{parameter.get_real("T_inf")};
+  if (info.find("u") != info.end()) u = std::get<real>(info.at("u"));
+  if (info.find("v") != info.end()) v = std::get<real>(info.at("v"));
+  if (info.find("w") != info.end()) w = std::get<real>(info.at("w"));
+
+  const integer n_scalar = parameter.get_int("n_scalar");
+  sv = new real[n_scalar];
+  for (int i = 0; i < n_scalar; ++i) {
+    sv[i] = 0;
+  }
+
+  total_pressure = pt_pRef * pRef;
+  total_temperature = Tt_TRef * TRef;
+
+  if (parameter.get_int("turbulence_method") == 1) {
+    // RANS simulation
+    if (parameter.get_int("RANS_model") == 2) {
+      // SST
+      const real viscosity{Sutherland(TRef)};
+      mut = std::get<real>(info.at("turb_viscosity_ratio")) * viscosity;
+
+      const real velocity{parameter.get_real("v_inf")};
+      if (info.find("turbulence_intensity") != info.end()) {
+        // For SST model, we need k and omega. If SA, we compute this for nothing.
+        const real turbulence_intensity = std::get<real>(info.at("turbulence_intensity"));
+        sv[n_spec] = 1.5 * velocity * velocity * turbulence_intensity * turbulence_intensity;
+        sv[n_spec + 1] = parameter.get_real("rho_inf") * sv[n_spec] / mut;
+      }
+    }
+  }
+}
+
+cfd::BackPressure::BackPressure(const std::string &name, cfd::Parameter &parameter) {
+  const integer n_spec{parameter.get_int("n_spec")};
+  if (n_spec > 0) {
+    printf("Subsonic inflow boundary condition does not support multi-species simulation.\n");
+    MpiParallel::exit();
+  }
+
+  auto &info = parameter.get_struct(name);
+  label = std::get<integer>(info.at("label"));
+
+  if (info.find("pressure") != info.end()) pressure = std::get<real>(info.at("pressure"));
+  if (pressure < 0) {
+    real p_pRef{1};
+    if (info.find("p_pRef_ratio") != info.end()) p_pRef = std::get<real>(info.at("p_pRef_ratio"));
+    else {
+      printf("Back pressure boundary condition does not specify pressure, is set as 1 in default.\n");
+    }
+    pressure = p_pRef * parameter.get_real("p_inf");
+  }
 }

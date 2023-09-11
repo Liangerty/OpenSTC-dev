@@ -59,9 +59,10 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
   MPI_File fp;
   // Question: Should I use MPI_MODE_CREATE only here?
   // If a previous simulation has a larger file size than the current one, the way we write to the file is offset,
-  // then the larger part would not be accessed anymore, which may results in a mistake.
+  // then the larger part would not be accessed anymore, which may results in a waste of memory.
+  // In order to avoid this, we should delete the original file if we are conducting a brand-new simulation, and backup the original ones if needed.
   MPI_File_open(MPI_COMM_WORLD, (out_dir.string() + "/flowfield.plt").c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY,
-                MPI_INFO_NULL, &fp);
+      MPI_INFO_NULL, &fp);
   MPI_Status status;
 
   // I. Header section
@@ -194,7 +195,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_sect
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
   MPI_File_open(MPI_COMM_WORLD, (out_dir.string() + "/flowfield.plt").c_str(), MPI_MODE_WRONLY,
-                MPI_INFO_NULL, &fp);
+      MPI_INFO_NULL, &fp);
   MPI_Status status;
 
   const auto n_block{mesh.n_block};
@@ -430,7 +431,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::print_field(integer st
 
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
-  MPI_File_open(MPI_COMM_WORLD, (out_dir.string() + "/flowfield.plt").c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY,
+  MPI_File_open(MPI_COMM_WORLD, (out_dir.string() + "/flowfield.plt").c_str(), MPI_MODE_WRONLY,
                 MPI_INFO_NULL, &fp);
   MPI_Status status;
 
