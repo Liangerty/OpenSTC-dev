@@ -497,3 +497,4 @@
 /output/field/.plt
 /output/wall/friction_heatflux.dat
 /output/field/symmetry.plt
+/output/message/reference_state.txt

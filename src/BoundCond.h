@@ -38,6 +38,7 @@ struct Inflow {
   real mw = mw_air;
   real viscosity = 0;
   real mut = 0;
+  real reynolds_number = -1;
 };
 
 struct Wall {
@@ -78,7 +79,6 @@ struct FarField {
   real velocity = 0;
   real density = -1;
   real u = 1, v = 0, w = 0;
-  real e_idx{1.0};
   real acoustic_speed = 0;
   real entropy = 0;
   real *sv = nullptr;
@@ -86,7 +86,6 @@ struct FarField {
   real viscosity = 0;
   real mut = 0;
   real specific_heat_ratio = gamma_air;
-  real riemann_invariant = 0;
   real reynolds_number = -1;
 };
 

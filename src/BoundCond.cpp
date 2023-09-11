@@ -78,6 +78,7 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
     // The density is not given, compute it from equation of state
     density = pressure * mw / (R_u * temperature);
   }
+  reynolds_number = density * velocity / viscosity;
 
   if (parameter.get_int("turbulence_method") == 1) {
     // RANS simulation
@@ -99,6 +100,9 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
     parameter.update_parameter("T_inf", temperature);
+    parameter.update_parameter("M_inf", mach);
+    parameter.update_parameter("Re_unit", reynolds_number);
+    parameter.update_parameter("mu_inf", viscosity);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];
@@ -272,6 +276,9 @@ cfd::FarField::FarField(cfd::Species &spec, cfd::Parameter &parameter) {
     parameter.update_parameter("v_inf", velocity);
     parameter.update_parameter("p_inf", pressure);
     parameter.update_parameter("T_inf", temperature);
+    parameter.update_parameter("M_inf", mach);
+    parameter.update_parameter("Re_unit", reynolds_number);
+    parameter.update_parameter("mu_inf", viscosity);
     std::vector<real> sv_inf(n_scalar, 0);
     for (int l = 0; l < n_scalar; ++l) {
       sv_inf[l] = sv[l];

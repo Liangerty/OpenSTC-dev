@@ -19,6 +19,8 @@ struct Driver {
 
 private:
 
+  void write_reference_state();
+
   void acquire_wall_distance();
 
   void steady_simulation();

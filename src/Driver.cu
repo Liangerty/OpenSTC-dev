@@ -39,6 +39,24 @@ Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
   cudaMalloc(&param, sizeof(DParameter));
   cudaMemcpy(param, &d_param, sizeof(DParameter), cudaMemcpyHostToDevice);
 #endif
+  write_reference_state();
+}
+
+template<MixtureModel mix_model, TurbMethod turb_method>
+void Driver<mix_model, turb_method>::write_reference_state() {
+  if (parameter.get_int("myid") == 0) {
+    std::ofstream ref_state("output/message/reference_state.txt", std::ios::trunc);
+    ref_state << "Reference state\n";
+    ref_state << "rho_inf = " << parameter.get_real("rho_inf") << '\n';
+    ref_state << "v_inf = " << parameter.get_real("v_inf") << '\n';
+    ref_state << "p_inf = " << parameter.get_real("p_inf") << '\n';
+    ref_state << "T_inf = " << parameter.get_real("T_inf") << '\n';
+    ref_state << "M_inf = " << parameter.get_real("M_inf") << '\n';
+    ref_state << "Re_unit = " << parameter.get_real("Re_unit") << '\n';
+    ref_state << "mu_inf = " << parameter.get_real("mu_inf") << '\n';
+    ref_state << "acoustic_speed_inf = " << parameter.get_real("v_inf") / parameter.get_real("M_inf") << '\n';
+    ref_state.close();
+  }
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method>
