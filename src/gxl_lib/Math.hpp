@@ -4,6 +4,7 @@
 // #include <vector>
 // #include <numeric>
 #include <cmath>
+#include <numbers>
 
 namespace gxl{
 template <typename T>
@@ -17,6 +18,29 @@ int sgn(T a) {
 template <typename T>
 int del(T a, T b) {
   return std::abs(a) == std::abs(b) ? 1 : 0;
+}
+
+// Solve the inverse function of complementary error function
+// Type T should be a float number
+// The current implementation is based on Newton's iteration
+template<typename T>
+T erfcInv(T z, T eps=1e-5){
+  constexpr int step_max{50};
+  T err{1};
+  int step{0};
+  T x{1};
+  if (z>1) x=-1;
+  if (std::abs(z-1)<0.02) return 0;
+
+  while (step<step_max && err>eps){
+    ++step;
+    T f_x= std::erfc(x) - z;
+    T df_dx=-2*std::numbers::inv_sqrtpi_v<T>*std::exp(-x*x);
+    T x1= x - f_x / df_dx;
+    err=std::abs((x1-x)/x);
+    x=x1;
+  }
+  return x;
 }
 
 // template <typename T>

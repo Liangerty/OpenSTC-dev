@@ -33,6 +33,9 @@ void initialize_spec_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mes
 void initialize_turb_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mesh,
                                  std::vector<Field> &field, Species &species);
 
+void initialize_mixture_fraction_from_species(cfd::Parameter &parameter, const cfd::Mesh &mesh,
+                                              std::vector<Field> &field, Species &species);
+
 // Implementations
 template<MixtureModel mix_model, TurbMethod turb_method>
 void initialize_basic_variables(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species) {
@@ -45,11 +48,14 @@ void initialize_basic_variables(Parameter &parameter, const Mesh &mesh, std::vec
   [[maybe_unused]] Inflow default_inflow(default_init, species, parameter);
 
   switch (init_method) {
-    case 0:initialize_from_start(parameter, mesh, field, species);
+    case 0:
+      initialize_from_start(parameter, mesh, field, species);
       break;
-    case 1:read_flowfield<mix_model, turb_method>(parameter, mesh, field, species);
+    case 1:
+      read_flowfield<mix_model, turb_method>(parameter, mesh, field, species);
       break;
-    default:printf("The initialization method is unknown, use freestream value to initialize by default.\n");
+    default:
+      printf("The initialization method is unknown, use freestream value to initialize by default.\n");
       initialize_from_start(parameter, mesh, field, species);
   }
 }
@@ -77,7 +83,8 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   for (size_t i = 0; i < n_var_old; ++i) {
     var_name[i] = gxl::read_str_from_plt_MPI_ver(fp, offset);
   }
-  // The first one tells if species info exists, if exists (1), else, (0).
+  // The first one tells if species info exists, if exists (1), from air, (0); in flamelet model, if we have species field, but not mixture fraction field, then (1); if we have all of them, then (2).
+  // That is, if the first value is not 0, we have species info.
   // The 2nd one tells if turbulent var exists, if 0 (compute from laminar), 1(From SA), 2(From SST)
   std::array old_data_info{0, 0};
   auto index_order = cfd::identify_variable_labels<mix_model, turb_method>(parameter, var_name, species,
@@ -85,7 +92,7 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   const integer n_spec{species.n_spec};
   const integer n_turb{parameter.get_int("n_turb")};
 
-  integer *mx = new integer[mesh.n_block_total], *my = new integer[mesh.n_block_total], *mz = new integer[mesh.n_block_total];
+  auto *mx = new integer[mesh.n_block_total], *my = new integer[mesh.n_block_total], *mz = new integer[mesh.n_block_total];
   for (int b = 0; b < mesh.n_block_total; ++b) {
     // 1. Zone marker. Value = 299.0, indicates a V112 header.
     offset += 4;
@@ -105,7 +112,6 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   }
   // Read the EOHMARKER
   offset += 4;
-
 
   std::vector<std::string> zone_name;
   std::vector<double> solution_time;
@@ -175,12 +181,18 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
           MPI_File_read_at(fp, offset, sv, 1, ty, &status);
           offset += memsz;
         } else if (n_turb == 1 && old_data_info[1] == 2) {
-          // SA from SST. Currently, just use freestream value to intialize. Modify this later when I write SA
+          // SA from SST. Currently, just use freestream value to initialize. Modify this later when I write SA
           old_data_info[1] = 0;
         } else if (n_turb == 2 && old_data_info[1] == 1) {
-          // SST from SA. As ACANS has done, the turbulent variables are intialized from freestream value
+          // SST from SA. As ACANS has done, the turbulent variables are initialized from freestream value
           old_data_info[1] = 0;
         }
+      } else if (index < 6 + n_spec + n_turb + 2) {
+        // Flamelet info
+        index -= 6;
+        auto sv = field[blk].sv[index];
+        MPI_File_read_at(fp, offset, sv, 1, ty, &status);
+        offset += memsz;
       } else {
         // No matched label, just ignore
         offset += memsz;
@@ -200,6 +212,12 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   if constexpr (turb_method == TurbMethod::RANS) {
     if (old_data_info[1] == 0) {
       initialize_turb_from_inflow(parameter, mesh, field, species);
+    }
+  }
+  if constexpr (mix_model == MixtureModel::FL && (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES)) {
+    if (old_data_info[0] == 1) {
+      // From species field to mixture fraction field
+      initialize_mixture_fraction_from_species(parameter, mesh, field, species);
     }
   }
 
@@ -248,6 +266,15 @@ identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &va
             break;
           }
         }
+        if (n == "MIXTUREFRACTION") {
+          // Mixture fraction
+          l = 6 + n_spec + n_turb;
+          old_data_info[0] = 2;
+        } else if (n == "MIXTUREFRACTIONVARIANCE") {
+          // Mixture fraction variance
+          l = 6 + n_spec + n_turb + 1;
+          old_data_info[0] = 2;
+        }
       }
       if constexpr (turb_method == TurbMethod::RANS) {
         // We expect to find some RANS variables. If not found, old_data_info[1] will remain 0.
@@ -269,7 +296,6 @@ identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &va
         }
       }
     }
-
     labels.emplace_back(l);
   }
   return labels;

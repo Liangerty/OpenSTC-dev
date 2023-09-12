@@ -3,17 +3,43 @@
 
 cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in) {
   const integer mx{block.mx}, my{block.my}, mz{block.mz}, ngg{block.ngg};
-  n_var = parameter.get_int("n_var");
-  integer n_scalar{0};
+  // Let us re-compute the number of variables to be solved here.
+  n_var = 5;
+  // The variable "n_scalar_transported" is the number of scalar variables to be transported.
+  integer n_scalar_transported{0};
   integer n_other_var{1}; // Default, mach number
+  // The variable "n_scalar" is the number of scalar variables in total, including those not transported.
+  // This is different from the variable "n_scalar_transported" only when the flamelet model is used.
+  integer n_scalar{0};
 
-  bv.resize(mx, my, mz, 6, ngg);
-  n_scalar += parameter.get_int("n_spec");
-  if (parameter.get_int("turbulence_method") == 1) {
-    // RANS
-    n_scalar += parameter.get_int("n_turb");
-    n_other_var += 1; // mut
+  if (parameter.get_bool("species")) {
+    n_scalar += parameter.get_int("n_spec");
+    if (parameter.get_int("reaction") != 2) {
+      // Mixture / Finite rate chemistry
+      n_scalar_transported += parameter.get_int("n_spec");
+    } else {
+      // Flamelet model
+      n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
+      n_scalar += 2;
+    }
   }
+  if (parameter.get_bool("turbulence")) {
+    // turbulence simulation
+    if (parameter.get_int("turbulence_method") == 1) {
+      // RANS
+      n_scalar_transported += parameter.get_int("n_turb");
+      n_scalar += parameter.get_int("n_turb");
+      ++n_other_var; // mut
+    }
+  }
+  n_var += n_scalar_transported;
+  parameter.update_parameter("n_var", n_var);
+  parameter.update_parameter("n_scalar", n_scalar);
+  parameter.update_parameter("n_scalar_transported", n_scalar_transported);
+  parameter.update_parameter("i_fl", parameter.get_int("n_turb") + parameter.get_int("n_spec"));
+
+  // Acquire memory for variable arrays
+  bv.resize(mx, my, mz, 6, ngg);
   sv.resize(mx, my, mz, n_scalar, ngg);
   ov.resize(mx, my, mz, n_other_var, ngg);
 }

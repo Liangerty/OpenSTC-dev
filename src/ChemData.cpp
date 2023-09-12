@@ -67,8 +67,11 @@ cfd::Species::Species(Parameter &parameter) {
       MpiParallel::exit();
     }
     parameter.update_parameter("n_spec", num_spec);
-    parameter.update_parameter("n_var", parameter.get_int("n_var") + num_spec);
-    parameter.update_parameter("n_scalar", parameter.get_int("n_scalar") + num_spec);
+    if (parameter.get_int("reaction")!=2){
+      // Not flamelet model, update these variables. If flamelet, these variables will be updated later.
+      parameter.update_parameter("n_var", parameter.get_int("n_var") + num_spec);
+      parameter.update_parameter("n_scalar", parameter.get_int("n_scalar") + num_spec);
+    }
 
     if (!has_therm) {
       file.close();
@@ -438,6 +441,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   gxl::getline_to_stream(file, input, line, gxl::Case::upper);
   while (input != "END") {
     if (input[0] == '!' || input.empty()) {
+      gxl::getline_to_stream(file, input, line, gxl::Case::upper);
       continue;
     }
 

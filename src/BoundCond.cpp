@@ -94,6 +94,16 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
     }
   }
 
+  if ((n_spec > 0 && parameter.get_int("reaction") == 2)) {
+    // flamelet model
+    if (parameter.get_int("turbulence_method") == 1) {
+      // RANS simulation
+      const auto i_fl{parameter.get_int("i_fl")};
+      sv[i_fl] = std::get<real>(info.at("mixture_fraction"));
+      sv[i_fl + 1] = 0;
+    }
+  }
+
   // This should be re-considered later
   if (inflow_name == parameter.get_string("reference_state")) {
     parameter.update_parameter("rho_inf", density);
