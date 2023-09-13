@@ -3,7 +3,7 @@
 #include "Parameter.h"
 #include "Mesh.h"
 #include "Driver.cuh"
-#include "FlameletDriver.cuh"
+#include "Simulate.cuh"
 
 int main(int argc, char *argv[]) {
   cfd::MpiParallel mpi_parallel(&argc, &argv);
@@ -28,17 +28,18 @@ int main(int argc, char *argv[]) {
         // Finite rate chemistry
         cfd::Driver<MixtureModel::FR, TurbMethod::RANS> driver(parameter, mesh);
         driver.initialize_computation();
-        driver.simulate();
+        simulate(driver);
+//        driver.simulate();
       } else if (reaction == 2) {
         // Flamelet model
         cfd::Driver<MixtureModel::FL, TurbMethod::RANS> driver(parameter, mesh);
         driver.initialize_computation();
-//        driver.simulate();
+        simulate(driver);
       } else {
         // Pure mixing among species
         cfd::Driver<MixtureModel::Mixture, TurbMethod::RANS> driver(parameter, mesh);
         driver.initialize_computation();
-        driver.simulate();
+        simulate(driver);
       }
     } else {
       // Laminar
@@ -46,12 +47,12 @@ int main(int argc, char *argv[]) {
         // Finite rate chemistry
         cfd::Driver<MixtureModel::FR, TurbMethod::Laminar> driver(parameter, mesh);
         driver.initialize_computation();
-        driver.simulate();
+        simulate(driver);
       } else {
         // Pure mixing among species
         cfd::Driver<MixtureModel::Mixture, TurbMethod::Laminar> driver(parameter, mesh);
         driver.initialize_computation();
-        driver.simulate();
+        simulate(driver);
       }
     }
   } else {
@@ -60,12 +61,12 @@ int main(int argc, char *argv[]) {
       // RANS and air
       cfd::Driver<MixtureModel::Air, TurbMethod::RANS> driver(parameter, mesh);
       driver.initialize_computation();
-      driver.simulate();
+      simulate(driver);
     } else {
       // Laminar and air
       cfd::Driver<MixtureModel::Air, TurbMethod::Laminar> driver(parameter, mesh);
       driver.initialize_computation();
-      driver.simulate();
+      simulate(driver);
     }
   }
 

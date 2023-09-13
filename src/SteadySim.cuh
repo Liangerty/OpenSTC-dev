@@ -2,6 +2,14 @@
 
 #include "Driver.cuh"
 #include "IOManager.h"
+#include "TimeAdvanceFunc.cuh"
+#include "SourceTerm.cuh"
+#include "SchemeSelector.cuh"
+#include "ImplicitTreatmentHPP.cuh"
+#include "FieldOperation.cuh"
+#include "DataCommunication.cuh"
+#include "Residual.cuh"
+#include "PostProcess.h"
 
 namespace cfd {
 template<MixtureModel mix_model, TurbMethod turb_method>
@@ -103,16 +111,19 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
 
     // Finally, test if the simulation reaches convergence state
     if (step % output_screen == 0 || step == 1) {
-      real err_max = driver.compute_residual(step);
+      real err_max = compute_residual(driver, step);
+//      real err_max = driver.compute_residual(step);
       converged = err_max < parameter.get_real("convergence_criteria");
       if (driver.myid == 0) {
-        driver.steady_screen_output(step, err_max);
+        steady_screen_output(step, err_max, driver.time, driver.res);
+//        driver.steady_screen_output(step, err_max);
       }
     }
     cudaDeviceSynchronize();
     if (step % output_file == 0 || converged) {
       ioManager.print_field(step);
-      driver.post_process();
+      post_process(driver);
+//      driver.post_process();
     }
   }
   delete[] bpg;

@@ -9,12 +9,29 @@
 #pragma once
 
 #include "Parameter.h"
+#include "Driver.cuh"
 
 namespace cfd {
 class Mesh;
 
 struct Field;
 struct DZone;
+
+template<MixtureModel mix_model, TurbMethod turb_method>
+void post_process(Driver<mix_model, turb_method> &driver) {
+  auto &parameter{driver.parameter};
+  static const std::vector<integer> processes{parameter.get_int_array("post_process")};
+
+  for (auto process: processes) {
+    switch (process) {
+      case 0: // Compute the 2D cf/qw
+        wall_friction_heatflux_2d(driver.mesh, driver.field, parameter);
+        break;
+      default:
+        break;
+    }
+  }
+}
 
 // Compute the wall friction and heat flux in 2D. Assume the wall is the j=0 plane
 // Procedure 0

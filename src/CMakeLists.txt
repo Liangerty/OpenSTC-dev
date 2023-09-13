@@ -17,8 +17,8 @@ list(APPEND src_file
   main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
-  Reconstruction.cu Reconstruction.cuh
-  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh
+  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh
+  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu
   ViscousScheme.cuh
   WallDistance.cuh

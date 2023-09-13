@@ -1,8 +1,9 @@
-#include "FlameletDriver.cuh"
+#include "Driver.cuh"
 #include <fstream>
 #include "Initialize.cuh"
 #include "DataCommunication.cuh"
 #include "WallDistance.cuh"
+#include "SteadySim.cuh"
 
 namespace cfd{
 template<TurbMethod turb_method>
@@ -67,7 +68,6 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
     printf("Boundary conditions are applied successfully for initialization\n");
   }
 
-
   // First, compute the conservative variables from basic variables
   for (auto i = 0; i < mesh.n_block; ++i) {
     integer mx{mesh[i].mx}, my{mesh[i].my}, mz{mesh[i].mz};
@@ -97,7 +97,7 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
     printf("The flowfield is completely initialized on GPU.\n");
   }
 }
-
+//
 //template<TurbMethod turb_method>
 //void Driver<MixtureModel::FL, turb_method>::simulate() {
 //  const auto steady{parameter.get_bool("steady")};

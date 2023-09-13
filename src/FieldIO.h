@@ -6,6 +6,7 @@
 #include "ChemData.h"
 #include <filesystem>
 #include <fstream>
+#include "gxl_lib/MyString.h"
 
 namespace cfd {
 
@@ -96,7 +97,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
     offset += 4;
     // 4. Variable names.
     for (auto &name: var_name) {
-      write_str(name.c_str(), fp, offset);
+      gxl::write_str(name.c_str(), fp, offset);
     }
 
     // iv. Zones
@@ -106,7 +107,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
       MPI_File_write_at(fp, offset, &zone_marker, 1, MPI_FLOAT, &status);
       offset += 4;
       // 2. Zone name.
-      write_str(("zone " + std::to_string(i)).c_str(), fp, offset);
+      gxl::write_str(("zone " + std::to_string(i)).c_str(), fp, offset);
       // 3. Parent zone. No longer used
       constexpr int32_t parent_zone{-1};
       MPI_File_write_at(fp, offset, &parent_zone, 1, MPI_INT32_T, &status);
