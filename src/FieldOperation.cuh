@@ -17,17 +17,20 @@ __device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone
   auto &bv = zone->bv;
   auto &vel = zone->vel;
   auto &cv = zone->cv;
+  auto &sv = zone->sv;
 
   vel(i, j, k) = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3);
-  cv(i, j, k, 4) = 0.5 * bv(i, j, k, 0) * vel(i, j, k);
+  cv(i, j, k, 4) = 0.5 * vel(i, j, k);
   if constexpr (mixture_model != MixtureModel::Air) {
     real enthalpy[MAX_SPEC_NUMBER];
     compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
     // Add species enthalpy together up to kinetic energy to get total enthalpy
     for (auto l = 0; l < zone->n_spec; l++) {
-      cv(i, j, k, 4) += enthalpy[l] * cv(i, j, k, 5 + l);
+      // h = \Sum_{i=1}^{n_spec} h_i * Y_i
+      cv(i, j, k, 4) += enthalpy[l] * sv(i, j, k, l);
     }
-    cv(i, j, k, 4) -= bv(i, j, k, 4);  // (\rho e =\rho h - p)
+    cv(i, j, k, 4) *= bv(i, j, k, 0); // \rho * h
+    cv(i, j, k, 4) -= bv(i, j, k, 4); // (\rho e =\rho h - p)
   } else {
     cv(i, j, k, 4) += bv(i, j, k, 4) / (gamma_air - 1);
   }
@@ -54,17 +57,17 @@ __global__ void compute_cv_from_bv(DZone *zone, DParameter *param) {
   cv(i, j, k, 2) = rho * v;
   cv(i, j, k, 3) = rho * w;
   // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
-  const integer n_scalar{zone->n_scal};
   const auto &sv = zone->sv;
   if constexpr (mix_model != MixtureModel::FL) {
+    const integer n_scalar{zone->n_scal};
     for (auto l = 0; l < n_scalar; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
     }
   } else {
     // Flamelet model
     const integer n_spec{zone->n_spec};
-    integer n_eqn{n_scalar - n_spec};
-    for (auto l = 0; l < n_eqn; ++l) {
+    const integer n_scalar_transported{param->n_scalar_transported};
+    for (auto l = 0; l < n_scalar_transported; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
     }
   }
@@ -197,8 +200,13 @@ __device__ void update_bv_1_point(cfd::DZone *zone, DParameter *param, integer i
   velocity = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3); //V^2
 
   auto &sv = zone->sv;
-  if constexpr (mix_model != MixtureModel::Air ||
-                turb_method == TurbMethod::RANS) { // Flamelet method should be written independently.
+  if constexpr (mix_model == MixtureModel::FL) {
+    // Flamelet model
+    for (integer l = 0; l < param->n_scalar_transported; ++l) {
+      sv(i, j, k, l + param->n_spec) = cv(i, j, k, 5 + l) * density_inv;
+    }
+    // TODO: There should be a step to compute the mass fractions from the new mixture fraction.
+  } else {
     // For multiple species or RANS methods, there will be scalars to be computed
     for (integer l = 0; l < zone->n_scal; ++l) {
       sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;

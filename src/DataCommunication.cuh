@@ -91,7 +91,6 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
       zone->bv(idx[0], idx[1], idx[2], l) = tar_zone->bv(idx_tar[0], idx_tar[1], idx_tar[2], l);
     }
     for (int l = 0; l < zone->n_scal; ++l) {
-      // Be Careful! The flamelet case is different from here, should be pay extra attention!
       zone->sv(idx[0], idx[1], idx[2], l) = tar_zone->sv(idx_tar[0], idx_tar[1], idx_tar[2], l);
     }
   }

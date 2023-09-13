@@ -24,12 +24,15 @@ struct DParameter {
   integer viscous_scheme = 0; // The tag for viscous scheme. 0 - Inviscid, 2 - 2nd order central discretization
 
   integer rans_model = 0;  // The tag for RANS model. 0 - Laminar, 1 - SA, 2 - SST
+  integer n_turb = 0;  // Number of turbulent variables to be transported
   integer turb_implicit = 1;    // If we implicitly treat the turbulent source term. By default, implicitly treat(1), else, 0(explicit)
   integer compressibility_correction = 0; // Which compressibility correction to be used. 0 - No compressibility correction, 1 - Wilcox's correction, 2 - Sarkar's correction, 3 - Zeman's correction
 
   integer chemSrcMethod = 0;  // For finite rate chemistry, we need to know how to implicitly treat the chemical source
   integer n_spec = 0;
   integer n_scalar = 0;
+  integer n_scalar_transported = 0;
+  integer i_fl = 0;
   integer n_reac = 0;
   real Pr = 0.72;
   real cfl = 1;
@@ -59,8 +62,8 @@ struct DParameter {
   real *troe_alpha = nullptr, *troe_t3 = nullptr, *troe_t1 = nullptr, *troe_t2 = nullptr;
 
   // Flamelet library info
-  integer n_z=0, n_zPrime = 0, n_chi = 0;
-  real* mix_frac= nullptr;
+  integer n_z = 0, n_zPrime = 0, n_chi = 0;
+  real *mix_frac = nullptr;
   ggxl::MatrixDyn<real> zPrime, chi_min, chi_max;
   ggxl::MatrixDyn<real> chi_min_j, chi_max_j;
   ggxl::Array3D<real> chi_ave;
