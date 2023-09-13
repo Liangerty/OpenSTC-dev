@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
       } else if (reaction == 2) {
         // Flamelet model
         cfd::Driver<MixtureModel::FL, TurbMethod::RANS> driver(parameter, mesh);
-//        driver.initialize_computation();
+        driver.initialize_computation();
 //        driver.simulate();
       } else {
         // Pure mixing among species

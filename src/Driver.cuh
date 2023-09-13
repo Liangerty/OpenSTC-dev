@@ -19,10 +19,6 @@ struct Driver {
 
 //private:
 
-  void acquire_wall_distance();
-
-//  void steady_simulation();
-
   real compute_residual(integer step);
 
   void steady_screen_output(integer step, real err_max);

@@ -21,6 +21,7 @@ list(APPEND src_file
   SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu
   ViscousScheme.cuh
+  WallDistance.cuh
 
   gxl_lib/Array.hpp
   gxl_lib/MyString.cpp

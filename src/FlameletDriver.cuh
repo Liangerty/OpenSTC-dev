@@ -8,7 +8,7 @@ template<TurbMethod turb_method>
 struct Driver<MixtureModel::FL, turb_method>{
   Driver(Parameter &parameter, Mesh &mesh_);
 
-//  void initialize_computation();
+  void initialize_computation();
 //  void simulate();
 //  void write_reference_state();
 //  void acquire_wall_distance();

@@ -141,7 +141,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   if (h_ptr->n_spec > 0) {
     h_ptr->gamma.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
     h_ptr->cp.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-    if (parameter.get_int("n_reac") > 0) {
+    if (parameter.get_int("reaction")==1) {
       // Finite rate chemistry
       if (const integer chemSrcMethod = parameter.get_int("chemSrcMethod");chemSrcMethod == 1) {
         // EPI
@@ -150,6 +150,9 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
         // DA
         h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, 0);
       }
+    } else if (parameter.get_int("reaction")==2){
+      // Flamelet model
+      // Maybe we can also implicitly treat the source term here.
     }
   }
   if (parameter.get_int("turbulence_method") == 1) {
@@ -181,7 +184,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   if (parameter.get_int("implicit_method") == 1) {//DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
-    // Except those inner or parallel comnnunication faces, they need to get the dq from neighbor blocks.
+    // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
     h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
     h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
     h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);

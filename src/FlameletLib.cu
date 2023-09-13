@@ -16,7 +16,7 @@ FlameletLib::FlameletLib(const Parameter &parameter) : n_spec{parameter.get_int(
 }
 
 void FlameletLib::read_ACANS_flamelet(const Parameter &parameter) {
-  const auto flamelet_file_name{parameter.get_string("flamelet_file_name")};
+  const auto flamelet_file_name{"input_files/"+parameter.get_string("flamelet_file_name")};
   std::ifstream file{flamelet_file_name};
   std::string input;
   std::istringstream line;

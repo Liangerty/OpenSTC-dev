@@ -530,3 +530,12 @@
 /cmake-build-release-visual-studio/.cmake/api/v1/reply/index-2023-09-12T06-26-09-0784.json
 /cmake-build-release-visual-studio/.cmake/api/v1/reply/target-openstc-Release-26298eb3285e14e25a3e.json
 /input_files/chemistry/H2_mech.inp
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/codemodel-v2-c1a34ecd623a903f30eb.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/index-2023-09-12T13-23-02-0521.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/target-openstc-Debug-ede4cd35f35b4ce7d858.json
+/cmake-build-debug-visual-studio/src/CMakeFiles/openstc.dir/MixtureFraction.cpp.obj
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/codemodel-v2-c85ca311a349108fcaf0.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/index-2023-09-12T13-23-02-0521.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/target-openstc-Release-9b72ef97920dd696d21e.json
+/input_files/chemistry/flamelet-lib-zzprimx.txt
+/output/message/mixture_fraction_info.txt

@@ -2,6 +2,7 @@
 #include <fstream>
 #include "Initialize.cuh"
 #include "DataCommunication.cuh"
+#include "WallDistance.cuh"
 
 namespace cfd{
 template<TurbMethod turb_method>
@@ -34,68 +35,68 @@ Driver<MixtureModel::FL, turb_method>::Driver(Parameter &parameter, Mesh &mesh_)
   write_reference_state(parameter);
 }
 
-//template<TurbMethod turb_method>
-//void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
-//  dim3 tpb{8, 8, 4};
-//  if (mesh.dimension == 2) {
-//    tpb = {16, 16, 1};
-//  }
-//  const auto ng_1 = 2 * mesh[0].ngg - 1;
-//
-//  // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
-//  if constexpr (turb_method == TurbMethod::RANS) {
-//    if (parameter.get_int("RANS_model") == 2) {
-//      // SST method
-////      acquire_wall_distance();
-//    }
-//  }
-//
-//  if (mesh.dimension == 2) {
-//    for (auto b = 0; b < mesh.n_block; ++b) {
-//      const auto mx{mesh[b].mx}, my{mesh[b].my};
-//      dim3 BPG{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, 1};
-//      eliminate_k_gradient <<<BPG, tpb >>>(field[b].d_ptr);
-//    }
-//  }
-//
-//  // Second, apply boundary conditions to all boundaries, including face communication between faces
-//  for (integer b = 0; b < mesh.n_block; ++b) {
-//    bound_cond.apply_boundary_conditions<MixtureModel::FL, turb_method>(mesh[b], field[b], param);
-//  }
-//  if (myid == 0) {
-//    printf("Boundary conditions are applied successfully for initialization\n");
-//  }
-//
-//
-//  // First, compute the conservative variables from basic variables
-//  for (auto i = 0; i < mesh.n_block; ++i) {
-//    integer mx{mesh[i].mx}, my{mesh[i].my}, mz{mesh[i].mz};
-//    dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-//    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
-//    if constexpr (turb_method == TurbMethod::RANS) {
-//      // We need the wall distance here. And the mut are computed for bc
-//      initialize_mut<MixtureModel::FL><<<bpg, tpb >>>(field[i].d_ptr, param);
-//    }
-//  }
-//  cudaDeviceSynchronize();
-//  // Third, communicate values between processes
-//  data_communication<MixtureModel::FL, turb_method>(mesh, field, parameter, 0, param);
-//
-//  if (myid == 0) {
-//    printf("Finish data transfer.\n");
-//  }
-//  cudaDeviceSynchronize();
-//
-//  for (auto b = 0; b < mesh.n_block; ++b) {
-//    integer mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
-//    dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-//    update_physical_properties<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[b].d_ptr, param);
-//  }
-//  cudaDeviceSynchronize();
-//  if (myid == 0) {
-//    printf("The flowfield is completely initialized on GPU.\n");
-//  }
-//}
+template<TurbMethod turb_method>
+void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
+  dim3 tpb{8, 8, 4};
+  if (mesh.dimension == 2) {
+    tpb = {16, 16, 1};
+  }
+  const auto ng_1 = 2 * mesh[0].ngg - 1;
+
+  // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
+  if constexpr (turb_method == TurbMethod::RANS) {
+    if (parameter.get_int("RANS_model") == 2) {
+      // SST method
+      acquire_wall_distance<MixtureModel::FL,TurbMethod::RANS>(*this);
+    }
+  }
+
+  if (mesh.dimension == 2) {
+    for (auto b = 0; b < mesh.n_block; ++b) {
+      const auto mx{mesh[b].mx}, my{mesh[b].my};
+      dim3 BPG{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, 1};
+      eliminate_k_gradient <<<BPG, tpb >>>(field[b].d_ptr);
+    }
+  }
+
+  // Second, apply boundary conditions to all boundaries, including face communication between faces
+  for (integer b = 0; b < mesh.n_block; ++b) {
+    bound_cond.apply_boundary_conditions<MixtureModel::FL, turb_method>(mesh[b], field[b], param);
+  }
+  if (myid == 0) {
+    printf("Boundary conditions are applied successfully for initialization\n");
+  }
+
+
+  // First, compute the conservative variables from basic variables
+  for (auto i = 0; i < mesh.n_block; ++i) {
+    integer mx{mesh[i].mx}, my{mesh[i].my}, mz{mesh[i].mz};
+    dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
+    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
+    if constexpr (turb_method == TurbMethod::RANS) {
+      // We need the wall distance here. And the mut are computed for bc
+      initialize_mut<MixtureModel::FL><<<bpg, tpb >>>(field[i].d_ptr, param);
+    }
+  }
+  cudaDeviceSynchronize();
+  // Third, communicate values between processes
+  data_communication<MixtureModel::FL, turb_method>(mesh, field, parameter, 0, param);
+
+  if (myid == 0) {
+    printf("Finish data transfer.\n");
+  }
+  cudaDeviceSynchronize();
+
+  for (auto b = 0; b < mesh.n_block; ++b) {
+    integer mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
+    dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
+    update_physical_properties<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[b].d_ptr, param);
+  }
+  cudaDeviceSynchronize();
+  if (myid == 0) {
+    printf("The flowfield is completely initialized on GPU.\n");
+  }
+}
 
 //template<TurbMethod turb_method>
 //void Driver<MixtureModel::FL, turb_method>::simulate() {
