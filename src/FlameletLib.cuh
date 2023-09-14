@@ -5,6 +5,7 @@
 #include "Parameter.h"
 #include "gxl_lib/Matrix.hpp"
 #include "gxl_lib/Array.hpp"
+#include "DParameter.cuh"
 
 namespace cfd {
 
@@ -23,5 +24,9 @@ struct FlameletLib {
 private:
   void read_ACANS_flamelet(const Parameter &parameter);
 };
+
+struct DZone;
+
+__device__ void flamelet_source(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 
 } // cfd

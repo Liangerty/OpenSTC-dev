@@ -13,7 +13,8 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
     i_fl{parameter.get_int("i_fl")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
     gradPInDiffusionFlux{parameter.get_bool("gradPInDiffusionFlux")},
-    Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")) {
+    Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")),
+    c_chi{parameter.get_real("c_chi")} {
   const auto &spec = species;
   n_spec = spec.n_spec;
   n_scalar = parameter.get_int("n_scalar");

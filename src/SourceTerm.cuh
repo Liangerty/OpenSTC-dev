@@ -22,7 +22,15 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
         break;
       case 2:
       default: // SST
-        SST::compute_source_and_mut(zone, i, j, k, param);
+        auto res_k_omega = SST::compute_source_and_mut(zone, i, j, k, param);
+        if constexpr (mix_model != MixtureModel::FL) {
+          const integer n_spec{param->n_spec};
+          zone->dq(i, j, k, n_spec + 5) += res_k_omega.x;
+          zone->dq(i, j, k, n_spec + 6) += res_k_omega.y;
+        } else {
+          zone->dq(i, j, k, 5) += res_k_omega.x;
+          zone->dq(i, j, k, 6) += res_k_omega.y;
+        }
     }
     // The mut is always computed in above functions, and we compute turbulent thermal conductivity here
     if constexpr (mix_model != MixtureModel::Air) {
@@ -36,6 +44,9 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
   if constexpr (mix_model == MixtureModel::FR) {
     // Finite rate chemistry will be computed
     finite_rate_chemistry(zone, i, j, k, param);
+  } else if (mix_model == MixtureModel::FL) {
+    // Flamelet model, the source term of the mixture fraction and its variance will be computed
+    flamelet_source(zone, i, j, k, param);
   }
 }
 }

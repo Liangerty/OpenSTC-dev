@@ -141,7 +141,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   if (h_ptr->n_spec > 0) {
     h_ptr->gamma.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
     h_ptr->cp.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-    if (parameter.get_int("reaction")==1) {
+    if (parameter.get_int("reaction") == 1) {
       // Finite rate chemistry
       if (const integer chemSrcMethod = parameter.get_int("chemSrcMethod");chemSrcMethod == 1) {
         // EPI
@@ -150,8 +150,9 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
         // DA
         h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, 0);
       }
-    } else if (parameter.get_int("reaction")==2){
+    } else if (parameter.get_int("reaction") == 2) {
       // Flamelet model
+      h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
       // Maybe we can also implicitly treat the source term here.
     }
   }

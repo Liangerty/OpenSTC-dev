@@ -68,6 +68,7 @@ struct DParameter {
   ggxl::MatrixDyn<real> chi_min_j, chi_max_j;
   ggxl::Array3D<real> chi_ave;
   ggxl::VectorField3D<real> yk_lib;
+  real c_chi{1.0};
 
 private:
   struct LimitFlow {
