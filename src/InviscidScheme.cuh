@@ -22,13 +22,19 @@ template<MixtureModel mix_model, TurbMethod turb_method>
 __device__ void
 reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone *zone,
                DParameter *param) {
-  const auto n_var = zone->n_var;
+  auto n_var = zone->n_var;
+  if constexpr (mix_model == MixtureModel::FL) {
+    n_var += zone->n_spec;
+  }
   switch (param->reconstruction) {
-    case 2:MUSCL_reconstruct(pv, pv_l, pv_r, idx_shared, n_var, param->limiter);
+    case 2:
+      MUSCL_reconstruct(pv, pv_l, pv_r, idx_shared, n_var, param->limiter);
       break;
-    case 3:NND2_reconstruct(pv, pv_l, pv_r, idx_shared, n_var, param->limiter);
+    case 3:
+      NND2_reconstruct(pv, pv_l, pv_r, idx_shared, n_var, param->limiter);
       break;
-    default:first_order_reconstruct(pv, pv_l, pv_r, idx_shared, n_var);
+    default:
+      first_order_reconstruct(pv, pv_l, pv_r, idx_shared, n_var);
   }
   if constexpr (mix_model != MixtureModel::Air) {
     real el = 0.5 * (pv_l[1] * pv_l[1] + pv_l[2] * pv_l[2] + pv_l[3] * pv_l[3]);
@@ -91,9 +97,13 @@ AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *para
   const integer n_spec = zone->n_spec;
   real gam_l{gamma_air}, gam_r{gamma_air};
   const integer n_var = zone->n_var;
-  if (n_spec > 0) {
-    gam_l = pv_l[n_var + 1];
-    gam_r = pv_r[n_var + 1];
+  auto n_reconstruct{n_var};
+  if constexpr (mix_model == MixtureModel::FL) {
+    n_reconstruct += n_spec;
+  }
+  if constexpr (mix_model != MixtureModel::Air) {
+    gam_l = pv_l[n_reconstruct + 1];
+    gam_r = pv_r[n_reconstruct + 1];
   }
   const real c = 0.5 * (std::sqrt(gam_l * pl / rho_l) + std::sqrt(gam_r * pr / rho_r));
   const real mach_l = ul / c, mach_r = ur / c;
@@ -132,18 +142,28 @@ AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *para
     fci[1] = coeff * pv_l[1] + p_coeff * k1;
     fci[2] = coeff * pv_l[2] + p_coeff * k2;
     fci[3] = coeff * pv_l[3] + p_coeff * k3;
-    fci[4] = coeff * (pv_l[n_var] + pv_l[4]) / pv_l[0];
+    fci[4] = coeff * (pv_l[n_reconstruct] + pv_l[4]) / pv_l[0];
     for (int l = 5; l < n_var; ++l) {
-      fci[l] = coeff * pv_l[l];
+      if constexpr (mix_model != MixtureModel::FL) {
+        fci[l] = coeff * pv_l[l];
+      } else {
+        // Flamelet model
+        fci[l] = coeff * pv_l[l + n_spec];
+      }
     }
   } else {
     fci[0] = coeff;
     fci[1] = coeff * pv_r[1] + p_coeff * k1;
     fci[2] = coeff * pv_r[2] + p_coeff * k2;
     fci[3] = coeff * pv_r[3] + p_coeff * k3;
-    fci[4] = coeff * (pv_r[n_var] + pv_r[4]) / pv_r[0];
+    fci[4] = coeff * (pv_r[n_reconstruct] + pv_r[4]) / pv_r[0];
     for (int l = 5; l < n_var; ++l) {
-      fci[l] = coeff * pv_r[l];
+      if constexpr (mix_model != MixtureModel::FL) {
+        fci[l] = coeff * pv_r[l];
+      } else {
+        // Flamelet model
+        fci[l] = coeff * pv_r[l + n_spec];
+      }
     }
   }
 }
