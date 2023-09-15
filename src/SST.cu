@@ -58,7 +58,7 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
   zone->mut(i, j, k) = mut;
 }
 
-__device__ double2 compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
+__device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
   const integer n_spec{zone->n_spec};
 
   const auto &m = zone->metric(i, j, k);
@@ -179,7 +179,6 @@ __device__ double2 compute_source_and_mut(cfd::DZone *zone, integer i, integer j
     beta -= beta_iStarMulXiStarMulFMt;
   }
 
-  double2 ret{0, 0};
   if (mut > 1e-25) {
     // Next, compute the source term for turbulent kinetic energy.
     const real divU = u_x + v_y + w_z;
@@ -190,21 +189,20 @@ __device__ double2 compute_source_and_mut(cfd::DZone *zone, integer i, integer j
                (u_z + w_x) * (u_z + w_x) + (v_z + w_y) * (v_z + w_y)) - 2.0 / 3 * rhoK * divU;
     const real diss_k = betaStar * rhoK * omega;
     const real jac = zone->jac(i, j, k);
-    ret.x = jac * (prod_k - diss_k);
+    const integer i_turb_cv{param->i_turb_cv};
+    zone->dq(i, j, k, i_turb_cv) += jac * (prod_k - diss_k);
 
     // omega source term
     const real gamma = SST::gamma2 + SST::delta_gamma * f1;
     const real prod_omega = gamma * density / mut * prod_k + (1 - f1) * inter_var;
     const real diss_omega = beta * density * omega * omega;
-    ret.y = jac * (prod_omega - diss_omega);
+    zone->dq(i, j, k, i_turb_cv + 1) += jac * (prod_omega - diss_omega);
   }
 
   if (param->turb_implicit == 1) {
     zone->turb_src_jac(i, j, k, 0) = -2 * betaStar * omega;
     zone->turb_src_jac(i, j, k, 1) = -2 * beta * omega;
   }
-
-  return ret;
 }
 
 __global__ void implicit_treat(cfd::DZone *zone) {

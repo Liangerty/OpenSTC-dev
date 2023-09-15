@@ -32,7 +32,7 @@ static constexpr double delta_gamma = gamma1 - gamma2;
 
 __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul);
 
-__device__ double2 compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
+__device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 
 __device__ real Wilcox_compressibility_correction(real Mt);
 

@@ -118,6 +118,6 @@ __device__ void flamelet_source(cfd::DZone *zone, integer i, integer j, integer 
   zone->scalar_diss_rate(i, j, k) = 2 * 0.09 * sv(i, j, k, param->n_spec + 1) * sv(i, j, k, i_fl + 1) * param->c_chi;
   const real diss_mixFrac{zone->bv(i, j, k, 0) * zone->scalar_diss_rate(i, j, k)};
 
-  zone->dq(i, j, k, param->n_turb + 5) += zone->jac(i, j, k) * (prod_mixFrac - diss_mixFrac);
+  zone->dq(i, j, k, param->i_fl_cv) += zone->jac(i, j, k) * (prod_mixFrac - diss_mixFrac);
 }
 }// cfd

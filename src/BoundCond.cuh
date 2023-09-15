@@ -437,9 +437,18 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     bv(i, j, k, 3) = w;
     bv(i, j, k, 4) = pressure;
     bv(i, j, k, 5) = temperature;
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = sv_b[l];
-      cv(i, j, k, 5 + l) = density * sv_b[l];
+    if constexpr (mix_model != MixtureModel::FL) {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = sv_b[l];
+        cv(i, j, k, 5 + l) = density * sv_b[l];
+      }
+    } else {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = sv_b[l];
+      }
+      for (integer l = 0; l < param->n_scalar_transported; ++l) {
+        cv(i, j, k, 5 + l) = density * sv_b[n_spec + l];
+      }
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = mut;
@@ -548,11 +557,11 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
 
   if constexpr (mix_model == MixtureModel::FL) {
     // Flamelet model
-    const integer i_fl{param->i_fl}, n_turb{param->n_turb};
+    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
     sv(i, j, k, i_fl) = sv(idx[0], idx[1], idx[2], i_fl);
     sv(i, j, k, i_fl + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1);
-    cv(i, j, k, 5 + n_turb) = sv(idx[0], idx[1], idx[2], i_fl) * rho_wall;
-    cv(i, j, k, 5 + n_turb + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1) * rho_wall;
+    cv(i, j, k, i_fl_cv) = sv(idx[0], idx[1], idx[2], i_fl) * rho_wall;
+    cv(i, j, k, i_fl_cv + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1) * rho_wall;
   }
 
   for (int g = 1; g <= ngg; ++g) {

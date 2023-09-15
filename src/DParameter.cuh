@@ -33,6 +33,9 @@ struct DParameter {
   integer n_scalar = 0;
   integer n_scalar_transported = 0;
   integer i_fl = 0;
+  integer i_fl_cv = 0;
+  integer i_turb_cv = 0;
+
   integer n_reac = 0;
   real Pr = 0.72;
   real cfl = 1;

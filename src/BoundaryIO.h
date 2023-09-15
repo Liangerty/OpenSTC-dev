@@ -162,11 +162,11 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
       var_name.emplace_back("omega");
     }
   }
-//  if constexpr (mix_model == MixtureModel::FL) {
-//    nv += 2; // Z, Z_prime
-//    var_name.emplace_back("z");
-//    var_name.emplace_back("z prime");
-//  }
+  if constexpr (mix_model == MixtureModel::FL) {
+    nv += 2; // Z, Z_prime
+    var_name.emplace_back("MixtureFraction");
+    var_name.emplace_back("MixtureFractionVariance");
+  }
   if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
     nv += 1; // mu_t
     var_name.emplace_back("mut");
@@ -628,7 +628,7 @@ void BoundaryIO<mix_model, turb_method, output_time_choice>::print_boundary() {
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
       }
-      for (int m = 0; m < field[0].n_var - 5; ++m) {
+      for (int m = 0; m < n_scalar; ++m) {
         auto var = v.sv[m];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;

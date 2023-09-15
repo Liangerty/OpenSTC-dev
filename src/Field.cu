@@ -11,16 +11,23 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
   // The variable "n_scalar" is the number of scalar variables in total, including those not transported.
   // This is different from the variable "n_scalar_transported" only when the flamelet model is used.
   integer n_scalar{0};
+  // turbulent variable in sv array is always located after mass fractions, thus its label is always n_spec;
+  // however, for conservative array, it may depend on whether the employed method is flamelet or finite rate.
+  // This label, "i_turb_cv", is introduced to label the index of the first turbulent variable in the conservative variable array.
+  integer i_turb_cv{0}, i_fl_cv{0};
 
   if (parameter.get_bool("species")) {
     n_scalar += parameter.get_int("n_spec");
     if (parameter.get_int("reaction") != 2) {
       // Mixture / Finite rate chemistry
       n_scalar_transported += parameter.get_int("n_spec");
+      i_turb_cv = parameter.get_int("n_spec") + 5;
     } else {
       // Flamelet model
       n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
       n_scalar += 2;
+      i_turb_cv = 5;
+      i_fl_cv=5+parameter.get_int("n_turb");
     }
   }
   if (parameter.get_bool("turbulence")) {
@@ -36,7 +43,9 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
   parameter.update_parameter("n_var", n_var);
   parameter.update_parameter("n_scalar", n_scalar);
   parameter.update_parameter("n_scalar_transported", n_scalar_transported);
+  parameter.update_parameter("i_turb_cv", i_turb_cv);
   parameter.update_parameter("i_fl", parameter.get_int("n_turb") + parameter.get_int("n_spec"));
+  parameter.update_parameter("i_fl_cv", i_fl_cv);
 
   // Acquire memory for variable arrays
   bv.resize(mx, my, mz, 6, ngg);

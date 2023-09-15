@@ -10,7 +10,7 @@ cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reactio
     turb_implicit{parameter.get_int("turb_implicit")}, n_turb{parameter.get_int("n_turb")},
     compressibility_correction{parameter.get_int("compressibility_correction")},
     chemSrcMethod{parameter.get_int("chemSrcMethod")}, n_scalar_transported{parameter.get_int("n_scalar_transported")},
-    i_fl{parameter.get_int("i_fl")},
+    i_fl{parameter.get_int("i_fl")}, i_fl_cv{parameter.get_int("i_fl_cv")}, i_turb_cv{parameter.get_int("i_turb_cv")},
     Pr(parameter.get_real("prandtl_number")), cfl(parameter.get_real("cfl")),
     gradPInDiffusionFlux{parameter.get_bool("gradPInDiffusionFlux")},
     Prt(parameter.get_real("turbulent_prandtl_number")), Sct(parameter.get_real("turbulent_schmidt_number")),

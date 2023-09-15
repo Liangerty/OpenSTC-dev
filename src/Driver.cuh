@@ -16,16 +16,6 @@ struct Driver {
 
   void initialize_computation();
 
-//  void simulate();
-
-//private:
-
-//  real compute_residual(integer step);
-//
-//  void steady_screen_output(integer step, real err_max);
-
-//  void post_process();
-
 public:
   integer myid = 0;
   gxl::Time time;
