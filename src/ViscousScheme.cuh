@@ -204,7 +204,6 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
         const integer it = zone->n_spec;
         auto &sv = zone->sv;
 
@@ -481,7 +480,6 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
         const integer it = zone->n_spec;
         auto &sv = zone->sv;
 
@@ -754,7 +752,6 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
         const integer it = zone->n_spec;
         auto &sv = zone->sv;
         const real k_xi =

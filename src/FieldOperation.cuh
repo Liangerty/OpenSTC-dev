@@ -76,6 +76,35 @@ __global__ void compute_cv_from_bv(DZone *zone, DParameter *param) {
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method>
+__device__ void compute_cv_from_bv_1_point(DZone *zone, DParameter *param, integer i, integer j, integer k) {
+  const auto &bv = zone->bv;
+  auto &cv = zone->cv;
+  const real rho = bv(i, j, k, 0);
+
+  cv(i, j, k, 0) = rho;
+  cv(i, j, k, 1) = rho * bv(i, j, k, 1);
+  cv(i, j, k, 2) = rho * bv(i, j, k, 2);
+  cv(i, j, k, 3) = rho * bv(i, j, k, 3);
+  // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
+  const auto &sv = zone->sv;
+  if constexpr (mix_model != MixtureModel::FL) {
+    const integer n_scalar{zone->n_scal};
+    for (auto l = 0; l < n_scalar; ++l) {
+      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
+    }
+  } else {
+    // Flamelet model
+    const integer n_spec{zone->n_spec};
+    const integer n_scalar_transported{param->n_scalar_transported};
+    for (auto l = 0; l < n_scalar_transported; ++l) {
+      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
+    }
+  }
+
+  compute_total_energy<mix_model>(i, j, k, zone, param);
+}
+
+template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void update_physical_properties(DZone *zone, DParameter *param) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
   integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
@@ -150,6 +179,7 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   auto &cv = zone->cv;
 
   real dt_div_jac = zone->dt_local(i, j, k) / zone->jac(i, j, k);
+#pragma unroll 5
   for (integer l = 0; l < zone->n_var; ++l) {
     cv(i, j, k, l) += zone->dq(i, j, k, l) * dt_div_jac;
   }
