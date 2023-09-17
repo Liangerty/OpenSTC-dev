@@ -131,8 +131,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   cudaMemcpy(h_ptr->metric.data(), block.metric.data(), sizeof(gxl::Matrix<real, 3, 3, 1>) * h_ptr->metric.size(),
              cudaMemcpyHostToDevice);
 
-  h_ptr->n_var = parameter.get_int("n_var");
-  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, h_ptr->ngg);
+  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
   h_ptr->bv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 6, h_ptr->ngg);
   cudaMemcpy(h_ptr->bv.data(), bv.data(), sizeof(real) * h_ptr->bv.size() * 6, cudaMemcpyHostToDevice);
   h_ptr->bv_last.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 4, 0);
@@ -142,8 +141,6 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->mul.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
   h_ptr->thermal_conductivity.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
 
-//  h_ptr->n_spec = parameter.get_int("n_spec");
-//  h_ptr->n_scal = parameter.get_int("n_scalar");
   const auto n_spec{parameter.get_int("n_spec")};
   const auto n_scalar = parameter.get_int("n_scalar");
   h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_scalar, h_ptr->ngg);
@@ -191,15 +188,15 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
 //    }
 //  }
 
-  h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 0);
+  h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
   h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   if (parameter.get_int("implicit_method") == 1) {//DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
     // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
-    h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
-    h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
-    h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
+    h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
+    h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
+    h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
     h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
     h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }

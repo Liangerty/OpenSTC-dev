@@ -18,23 +18,25 @@ struct DParameter {
 
   integer myid = 0;   // The process id of this process
 
+  // Number of equations and variables
+  integer n_var=0;                    // The number of variables in the conservative variable
+  integer n_scalar = 0;               // The number of scalar variables
+  integer n_scalar_transported = 0;   // The number of scalar variables in the conservative equation, this is only different from n_scalar when we use flamelet model
+  integer n_spec = 0;                 // The number of species
+  integer i_fl = 0;                   // The index of flamelet variable in the scalar variable
+  integer i_fl_cv = 0;                // The index of flamelet variable in the conservative variable
+  integer i_turb_cv = 0;              // The index of turbulent variable in the conservative variable
+
   integer inviscid_scheme = 0;  // The tag for inviscid scheme. 3 - AUSM+
   integer reconstruction = 2; // The reconstruction method for inviscid flux computation
   integer limiter = 0;  // The tag for limiter method
   integer viscous_scheme = 0; // The tag for viscous scheme. 0 - Inviscid, 2 - 2nd order central discretization
 
   integer rans_model = 0;  // The tag for RANS model. 0 - Laminar, 1 - SA, 2 - SST
-  integer n_turb = 0;  // Number of turbulent variables to be transported
   integer turb_implicit = 1;    // If we implicitly treat the turbulent source term. By default, implicitly treat(1), else, 0(explicit)
   integer compressibility_correction = 0; // Which compressibility correction to be used. 0 - No compressibility correction, 1 - Wilcox's correction, 2 - Sarkar's correction, 3 - Zeman's correction
 
   integer chemSrcMethod = 0;  // For finite rate chemistry, we need to know how to implicitly treat the chemical source
-  integer n_spec = 0;
-  integer n_scalar = 0;
-  integer n_scalar_transported = 0;
-  integer i_fl = 0;
-  integer i_fl_cv = 0;
-  integer i_turb_cv = 0;
 
   integer n_reac = 0;
   real Pr = 0.72;

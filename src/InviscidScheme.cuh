@@ -22,7 +22,7 @@ template<MixtureModel mix_model, TurbMethod turb_method>
 __device__ void
 reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone *zone,
                DParameter *param) {
-  auto n_var = zone->n_var;
+  auto n_var = param->n_var;
   if constexpr (mix_model == MixtureModel::FL) {
     n_var += param->n_spec;
   }
@@ -96,7 +96,7 @@ AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *para
   const real pl = pv_l[4], pr = pv_r[4], rho_l = pv_l[0], rho_r = pv_r[0];
   const integer n_spec = param->n_spec;
   real gam_l{gamma_air}, gam_r{gamma_air};
-  const integer n_var = zone->n_var;
+  const integer n_var = param->n_var;
   auto n_reconstruct{n_var};
   if constexpr (mix_model == MixtureModel::FL) {
     n_reconstruct += n_spec;

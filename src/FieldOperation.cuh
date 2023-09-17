@@ -179,7 +179,7 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   auto &cv = zone->cv;
 
   real dt_div_jac = zone->dt_local(i, j, k) / zone->jac(i, j, k);
-  for (integer l = 0; l < zone->n_var; ++l) {
+  for (integer l = 0; l < param->n_var; ++l) {
     cv(i, j, k, l) += zone->dq(i, j, k, l) * dt_div_jac;
   }
   if (extent[2] == 1) {

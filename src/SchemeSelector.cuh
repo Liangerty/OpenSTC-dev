@@ -90,7 +90,7 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
 
   // load variables to shared memory
   extern __shared__ real s[];
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
   auto n_reconstruct{n_var};
   if constexpr (mix_model == MixtureModel::FL) {
     n_reconstruct += param->n_spec;
@@ -209,7 +209,7 @@ viscous_flux_fv(cfd::DZone *zone, integer max_extent, cfd::DParameter *param) {
   idx[2] = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (idx[0] >= max_extent) return;
   const auto tid = threadIdx.x;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *fv = s;
@@ -238,7 +238,7 @@ __global__ void viscous_flux_gv(cfd::DZone *zone, integer max_extent, cfd::DPara
   idx[2] = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (idx[1] >= max_extent) return;
   const auto tid = threadIdx.y;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *gv = s;
@@ -267,7 +267,7 @@ __global__ void viscous_flux_hv(cfd::DZone *zone, integer max_extent, cfd::DPara
   idx[2] = (integer) ((blockDim.z - 1) * blockIdx.z + threadIdx.z) - 1;
   if (idx[2] >= max_extent) return;
   const auto tid = threadIdx.z;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *hv = s;

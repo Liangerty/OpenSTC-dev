@@ -497,7 +497,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
       }
-      for (int m = 0; m < field[0].n_var - 5; ++m) {
+      for (int m = 0; m < n_scalar; ++m) {
         auto var = v.sv[m];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;

@@ -54,7 +54,7 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
     for (integer l = 0; l < 5; ++l) {
       dq(i, j, k, l) /= diag;
     }
-    for (integer l = param->i_fl_cv; l < zone->n_var; ++l) {
+    for (integer l = param->i_fl_cv; l < param->n_var; ++l) {
       dq(i, j, k, l) /= diag;
     }
   }
@@ -163,7 +163,7 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   real convJacTimesDq[n_var_max], dq_total[n_var_max];
   memset(dq_total, 0, n_var_max * sizeof(real));
 
-  const integer n_var{zone->n_var};
+  const integer n_var{param->n_var};
   const auto &inviscid_spectral_radius = zone->inv_spectr_rad;
   integer ii{i - 1}, jj{j - 1}, kk{k - 1};
   if (i > 0) {
@@ -298,7 +298,7 @@ void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_p
   compute_DQ_0<mixture_model, turb_method><<<bpg, tpb>>>(d_ptr, param);
   // Take care of all such treatments where n_var is used to decide the memory size,
   // for when flamelet model is used, the data structure should be modified to make the useful data contiguous.
-  const auto mem_sz = h_ptr->dq.size() * h_ptr->n_var * sizeof(real);
+  const auto mem_sz = h_ptr->dq.size() * parameter.get_int("n_var") * sizeof(real);
   cudaMemcpy(h_ptr->dq0.data(), h_ptr->dq.data(), mem_sz, cudaMemcpyDeviceToDevice);
 
   for (integer iter = 0; iter < parameter.get_int("DPLUR_inner_step"); ++iter) {
