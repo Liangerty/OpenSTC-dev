@@ -13,7 +13,7 @@ struct Inflow;
 struct DZone {
   DZone() = default;
 
-  integer mx = 0, my = 0, mz = 0, ngg = 0, n_spec = 0, n_scal = 0, n_var = 5;
+  integer mx = 0, my = 0, mz = 0, ngg = 0, n_var = 5; //, n_scal = 0, n_spec = 0
   ggxl::Array3D<real> x, y, z;
   Boundary *boundary = nullptr;
   InnerFace *innerface = nullptr;

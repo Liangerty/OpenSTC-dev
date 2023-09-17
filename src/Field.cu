@@ -27,7 +27,7 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
       n_scalar += 2;
       i_turb_cv = 5;
-      i_fl_cv=5+parameter.get_int("n_turb");
+      i_fl_cv = 5 + parameter.get_int("n_turb");
     }
   }
   if (parameter.get_bool("turbulence")) {
@@ -142,22 +142,24 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->mul.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
   h_ptr->thermal_conductivity.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
 
-  h_ptr->n_spec = parameter.get_int("n_spec");
-  h_ptr->n_scal = parameter.get_int("n_scalar");
-  h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_scal, h_ptr->ngg);
-  cudaMemcpy(h_ptr->sv.data(), sv.data(), sizeof(real) * h_ptr->sv.size() * h_ptr->n_scal, cudaMemcpyHostToDevice);
-  h_ptr->rho_D.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, h_ptr->ngg);
-  if (h_ptr->n_spec > 0) {
+//  h_ptr->n_spec = parameter.get_int("n_spec");
+//  h_ptr->n_scal = parameter.get_int("n_scalar");
+  const auto n_spec{parameter.get_int("n_spec")};
+  const auto n_scalar = parameter.get_int("n_scalar");
+  h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_scalar, h_ptr->ngg);
+  cudaMemcpy(h_ptr->sv.data(), sv.data(), sizeof(real) * h_ptr->sv.size() * n_scalar, cudaMemcpyHostToDevice);
+  h_ptr->rho_D.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, h_ptr->ngg);
+  if (n_spec > 0) {
     h_ptr->gamma.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
     h_ptr->cp.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
     if (parameter.get_int("reaction") == 1) {
       // Finite rate chemistry
       if (const integer chemSrcMethod = parameter.get_int("chemSrcMethod");chemSrcMethod == 1) {
         // EPI
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec * h_ptr->n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec * n_spec, 0);
       } else if (chemSrcMethod == 2) {
         // DA
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, 0);
       }
     } else if (parameter.get_int("reaction") == 2) {
       // Flamelet model
@@ -217,5 +219,5 @@ void cfd::Field::copy_data_from_device(const Parameter &parameter) {
   if (parameter.get_int("turbulence_method") == 1) {
     cudaMemcpy(ov[1], h_ptr->mut.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
   }
-  cudaMemcpy(sv.data(), h_ptr->sv.data(), h_ptr->n_scal * size * sizeof(real), cudaMemcpyDeviceToHost);
+  cudaMemcpy(sv.data(), h_ptr->sv.data(), parameter.get_int("n_scalar") * size * sizeof(real), cudaMemcpyDeviceToHost);
 }

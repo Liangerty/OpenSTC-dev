@@ -82,8 +82,8 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -117,7 +117,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     // Here, we only consider the influence of species diffusion.
     // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
     // If we are solving flamelet model, this part only contribute to the energy eqn.
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -204,7 +204,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       case 2: // SST
       default:
         // Default SST
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
 
         const real k_xi = sv(i + 1, j, k, it) - sv(i, j, k, it);
@@ -358,8 +358,8 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -393,7 +393,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     // Here, we only consider the influence of species diffusion.
     // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
     // If we are solving flamelet model, this part only contribute to the energy eqn.
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -480,7 +480,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       case 2: // SST
       default:
         // Default SST
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
 
         const real k_xi =
@@ -630,8 +630,8 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -665,7 +665,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     // Here, we only consider the influence of species diffusion.
     // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
     // If we are solving flamelet model, this part only contribute to the energy eqn.
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -752,7 +752,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       case 2: // SST
       default:
         // Default SST
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
         const real k_xi =
             0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j, k + 1, it) - sv(i - 1, j, k + 1, it));

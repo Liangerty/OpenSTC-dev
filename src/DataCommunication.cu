@@ -1,6 +1,6 @@
 #include "DataCommunication.cuh"
 
-__global__ void cfd::setup_data_to_be_sent(cfd::DZone *zone, integer i_face, real *data) {
+__global__ void cfd::setup_data_to_be_sent(cfd::DZone *zone, integer i_face, real *data, const DParameter* param) {
   const auto &f = zone->parface[i_face];
   integer n[3];
   n[0] = blockIdx.x * blockDim.x + threadIdx.x;
@@ -13,7 +13,7 @@ __global__ void cfd::setup_data_to_be_sent(cfd::DZone *zone, integer i_face, rea
     idx[ijk] = f.range_start[ijk] + n[ijk] * f.loop_dir[ijk];
   }
 
-  const integer n_var{zone->n_scal + 6}, ngg{zone->ngg};
+  const integer n_var{param->n_scalar + 6}, ngg{zone->ngg};
   integer bias = n_var * (ngg + 1) * (n[f.loop_order[1]] * f.n_point[f.loop_order[2]] + n[f.loop_order[2]]);
 
   const auto &bv = zone->bv;
@@ -22,7 +22,7 @@ __global__ void cfd::setup_data_to_be_sent(cfd::DZone *zone, integer i_face, rea
     data[bias + l] = bv(idx[0], idx[1], idx[2], l);
   }
   const auto& sv=zone->sv;
-  for (integer l = 0; l < zone->n_scal; ++l) {
+  for (integer l = 0; l < param->n_scalar; ++l) {
     data[bias + 6 + l] = sv(idx[0], idx[1], idx[2], l);
   }
 
@@ -33,7 +33,7 @@ __global__ void cfd::setup_data_to_be_sent(cfd::DZone *zone, integer i_face, rea
     for (integer l = 0; l < 6; ++l) {
       data[bias + l] = bv(idx[0], idx[1], idx[2], l);
     }
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       data[bias + 6 + l] = sv(idx[0], idx[1], idx[2], l);
     }
   }

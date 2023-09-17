@@ -27,14 +27,14 @@ __device__ void
 compute_chem_src_jacobian_diagonal(DZone *zone, integer i, integer j, integer k, const DParameter *param,
                                    const real *q1);
 
-__global__ void EPI(DZone *zone);
+__global__ void EPI(DZone *zone, integer n_spec);
 
-__device__ void EPI_for_dq0(DZone *zone, real diag, integer i, integer j, integer k);
-__device__ void EPI_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real* dq_total);
+__device__ void EPI_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, integer n_spec);
+__device__ void EPI_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real* dq_total, integer n_spec);
 
-__device__ void solve_chem_system(real *lhs, DZone *zone, integer i, integer j, integer k);
+__device__ void solve_chem_system(real *lhs, DZone *zone, integer i, integer j, integer k, integer n_spec);
 __device__ void solve_chem_system(real *lhs, real *rhs, integer dim);
 
-__global__ void DA(DZone *zone);
+__global__ void DA(DZone *zone, integer n_spec);
 
 } // cfd

@@ -19,7 +19,7 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
 template<MixtureModel mix_model, TurbMethod turb_method>
 void parallel_communication(const Mesh &mesh, std::vector<cfd::Field> &field, integer step, DParameter *param);
 
-__global__ void setup_data_to_be_sent(DZone *zone, integer i_face, real *data);
+__global__ void setup_data_to_be_sent(DZone *zone, integer i_face, real *data, const DParameter* param);
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void assign_data_received(DZone *zone, integer i_face, const real *data, DParameter *param);
@@ -96,7 +96,7 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
     for (int l = 0; l < 6; ++l) {
       zone->bv(idx[0], idx[1], idx[2], l) = tar_zone->bv(idx_tar[0], idx_tar[1], idx_tar[2], l);
     }
-    for (int l = 0; l < zone->n_scal; ++l) {
+    for (int l = 0; l < param->n_scalar; ++l) {
       zone->sv(idx[0], idx[1], idx[2], l) = tar_zone->sv(idx_tar[0], idx_tar[1], idx_tar[2], l);
     }
   }
@@ -159,7 +159,7 @@ void parallel_communication(const cfd::Mesh &mesh, std::vector<cfd::Field> &fiel
         bpg[j] = (fc.n_point[j] - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      setup_data_to_be_sent<<<BPG, TPB>>>(field[m].d_ptr, f, &temp_s[fc_num][0]);
+      setup_data_to_be_sent<<<BPG, TPB>>>(field[m].d_ptr, f, &temp_s[fc_num][0], param);
       cudaDeviceSynchronize();
       //Send and receive. Take care of the first address!
       // The buffer is on GPU, thus we require a CUDA-aware MPI, such as OpenMPI.
@@ -217,7 +217,7 @@ __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const rea
     idx[ijk] = f.range_start[ijk] + n[ijk] * f.loop_dir[ijk];
   }
 
-  const integer n_var{zone->n_scal + 6}, ngg{zone->ngg};
+  const integer n_var{param->n_scalar + 6}, ngg{zone->ngg};
   integer bias = n_var * (ngg + 1) * (n[f.loop_order[1]] * f.n_point[f.loop_order[2]] + n[f.loop_order[2]]);
 
   auto &bv = zone->bv;
@@ -226,7 +226,7 @@ __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const rea
     bv(idx[0], idx[1], idx[2], l) = 0.5 * (bv(idx[0], idx[1], idx[2], l) + data[bias + l]);
   }
   auto &sv = zone->sv;
-  for (integer l = 0; l < zone->n_scal; ++l) {
+  for (integer l = 0; l < param->n_scalar; ++l) {
     sv(idx[0], idx[1], idx[2], l) = 0.5 * (sv(idx[0], idx[1], idx[2], l) + data[bias + 6 + l]);
   }
   compute_cv_from_bv_1_point<mix_model, turb_method>(zone, param, idx[0], idx[1], idx[2]);
@@ -238,7 +238,7 @@ __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const rea
     for (integer l = 0; l < 6; ++l) {
       bv(idx[0], idx[1], idx[2], l) = data[bias + l];
     }
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(idx[0], idx[1], idx[2], l) = data[bias + 6 + l];
     }
     compute_cv_from_bv_1_point<mix_model, turb_method>(zone, param, idx[0], idx[1], idx[2]);

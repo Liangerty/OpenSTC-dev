@@ -23,7 +23,7 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
   const real diag =
       1 + dt_local * (inviscid_spectral_radius[0] + inviscid_spectral_radius[1] + inviscid_spectral_radius[2]);
   auto &dq = zone->dq;
-  const integer n_spec{zone->n_spec};
+  const integer n_spec{param->n_spec};
   if constexpr (mixture_model == MixtureModel::Air || mixture_model == MixtureModel::Mixture) {
     for (integer l = 0; l < 5 + n_spec; ++l) {
       dq(i, j, k, l) /= diag;
@@ -36,10 +36,10 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
     // Point implicit
     switch (param->chemSrcMethod) {
       case 1: // EPI
-        EPI_for_dq0(zone, diag, i, j, k);
+        EPI_for_dq0(zone, diag, i, j, k, n_spec);
         break;
       case 2: // DA
-        for (int l = 0; l < zone->n_spec; ++l) {
+        for (int l = 0; l < n_spec; ++l) {
           zone->dq(i, j, k, 5 + l) /= diag - dt_local * zone->chem_src_jac(i, j, k, l);
         }
         break;
@@ -108,7 +108,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
     real enthalpy[MAX_SPEC_NUMBER];
     const real t{pv(i, j, k, 5)};
     compute_enthalpy(t, enthalpy, param);
-    for (int l = 0; l < zone->n_spec; ++l) {
+    for (int l = 0; l < param->n_spec; ++l) {
       h += sv(i, j, k, l) * enthalpy[l];
     }
     h += e;
@@ -118,7 +118,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
     const real t{pv(i, j, k, 5)};
     compute_enthalpy(t, enthalpy, param);
     gamma = zone->gamma(i, j, k);
-    for (int l = 0; l < zone->n_spec; ++l) {
+    for (int l = 0; l < param->n_spec; ++l) {
       b3 += R_u * t / mw[l] * dq(i, j, k, 5 + l);
       b4 += enthalpy[l] * dq(i, j, k, 5 + l);
       h += sv(i, j, k, l) * enthalpy[l];
@@ -218,7 +218,7 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   const real diag = 1 + dt_local * (spect_rad[0] + spect_rad[1] + spect_rad[2]);
   auto &dqk = zone->dqk;
   const auto &dq0 = zone->dq0;
-  const integer n_spec{zone->n_spec};
+  const integer n_spec{param->n_spec};
   if constexpr (mixture_model == MixtureModel::Air || mixture_model == MixtureModel::Mixture) {
     for (integer l = 0; l < 5 + n_spec; ++l) {
       dqk(i, j, k, l) = dq0(i, j, k, l) + dt_local * dq_total[l] / diag;
@@ -232,10 +232,10 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
     // Point implicit
     switch (param->chemSrcMethod) {
       case 1: // EPI
-        EPI_for_dqk(zone, diag, i, j, k, dq_total);
+        EPI_for_dqk(zone, diag, i, j, k, dq_total, n_spec);
         break;
       case 2: // DA
-        for (int l = 0; l < zone->n_spec; ++l) {
+        for (int l = 0; l < n_spec; ++l) {
           dqk(i, j, k, 5 + l) =
               dq0(i, j, k, 5 + l) + dt_local * dq_total[5 + l] / (diag - dt_local * zone->chem_src_jac(i, j, k, l));
         }

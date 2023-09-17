@@ -25,7 +25,7 @@ __device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone
     real enthalpy[MAX_SPEC_NUMBER];
     compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
     // Add species enthalpy together up to kinetic energy to get total enthalpy
-    for (auto l = 0; l < zone->n_spec; l++) {
+    for (auto l = 0; l < param->n_spec; l++) {
       // h = \Sum_{i=1}^{n_spec} h_i * Y_i
       cv(i, j, k, 4) += enthalpy[l] * sv(i, j, k, l);
     }
@@ -59,13 +59,13 @@ __global__ void compute_cv_from_bv(DZone *zone, DParameter *param) {
   // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
   const auto &sv = zone->sv;
   if constexpr (mix_model != MixtureModel::FL) {
-    const integer n_scalar{zone->n_scal};
+    const integer n_scalar{param->n_scalar};
     for (auto l = 0; l < n_scalar; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
     }
   } else {
     // Flamelet model
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     const integer n_scalar_transported{param->n_scalar_transported};
     for (auto l = 0; l < n_scalar_transported; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
@@ -88,13 +88,13 @@ __device__ void compute_cv_from_bv_1_point(DZone *zone, DParameter *param, integ
   // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
   const auto &sv = zone->sv;
   if constexpr (mix_model != MixtureModel::FL) {
-    const integer n_scalar{zone->n_scal};
+    const integer n_scalar{param->n_scalar};
     for (auto l = 0; l < n_scalar; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
     }
   } else {
     // Flamelet model
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     const integer n_scalar_transported{param->n_scalar_transported};
     for (auto l = 0; l < n_scalar_transported; ++l) {
       cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
@@ -114,7 +114,7 @@ __global__ void update_physical_properties(DZone *zone, DParameter *param) {
 
   const real temperature{zone->bv(i, j, k, 5)};
   if constexpr (mix_model != MixtureModel::Air) {
-    const integer n_spec{zone->n_spec};
+    const integer n_spec{param->n_spec};
     auto &yk = zone->sv;
     real mw{0}, cp_tot{0}, cv{0};
     real cp[MAX_SPEC_NUMBER];
@@ -158,13 +158,13 @@ __global__ void initialize_mut(DZone *zone, DParameter *param) {
       if constexpr (mix_model != MixtureModel::Air) {
         auto &yk = zone->sv;
         real mw{0};
-        for (auto l = 0; l < zone->n_spec; ++l) {
+        for (auto l = 0; l < param->n_spec; ++l) {
           mw += yk(i, j, k, l) / param->mw[l];
         }
         mw = 1 / mw;
         mul = compute_viscosity(i, j, k, temperature, mw, param, zone);
       }
-      SST::compute_mut(zone, i, j, k, mul);
+      SST::compute_mut(zone, i, j, k, mul, param);
   }
 }
 
@@ -200,7 +200,7 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   if constexpr (mix_model != MixtureModel::Air ||
                 turb_method == TurbMethod::RANS) { // Flamelet method should be written independently.
     // For multiple species or RANS methods, there will be scalars to be computed
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;
     }
   }
@@ -237,7 +237,7 @@ __device__ void update_bv_1_point(cfd::DZone *zone, DParameter *param, integer i
     // TODO: There should be a step to compute the mass fractions from the new mixture fraction.
   } else {
     // For multiple species or RANS methods, there will be scalars to be computed
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;
     }
   }
@@ -251,5 +251,5 @@ __device__ void update_bv_1_point(cfd::DZone *zone, DParameter *param, integer i
   velocity = std::sqrt(velocity);
 }
 
-__global__ void eliminate_k_gradient(cfd::DZone *zone);
+__global__ void eliminate_k_gradient(cfd::DZone *zone, const DParameter* param);
 }

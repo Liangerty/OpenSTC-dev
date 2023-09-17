@@ -49,7 +49,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
   var[2] = bv(i, j, k, 2);
   var[3] = bv(i, j, k, 3);
   var[4] = bv(i, j, k, 4);
-  const integer n_spec{zone->n_spec};
+  const integer n_spec{param->n_spec};
 
   // Find the unphysical values and limit them
   auto ll = param->limit_flow.ll;
@@ -97,7 +97,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
           updated_var[3] += bv(i1, j1, k1, 3);
           updated_var[4] += bv(i1, j1, k1, 4);
 
-          for (integer l = 0; l < zone->n_scal; ++l) {
+          for (integer l = 0; l < param->n_scalar; ++l) {
             updated_var[l + 5] += sv(i1, j1, k1, l);
           }
 
@@ -109,7 +109,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
     // Compute the average of the surrounding points
     if (kn > 0) {
       const real kn_inv{1.0 / kn};
-      for (integer l = 0; l < n_flow_var + zone->n_scal; ++l) {
+      for (integer l = 0; l < n_flow_var + param->n_scalar; ++l) {
         updated_var[l] *= kn_inv;
       }
     } else {
@@ -118,7 +118,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
         updated_var[l] = max(var[l], ll[l]);
         updated_var[l] = min(updated_var[l], ul[l]);
       }
-      for (integer l = 0; l < zone->n_scal; ++l) {
+      for (integer l = 0; l < param->n_scalar; ++l) {
         updated_var[l + 5] = param->limit_flow.sv_inf[l];
       }
     }
@@ -136,7 +136,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
     cv(i, j, k, 3) = updated_var[0] * updated_var[3];
     cv(i, j, k, 4) = 0.5 * updated_var[0] * (updated_var[1] * updated_var[1] + updated_var[2] * updated_var[2] +
                                              updated_var[3] * updated_var[3]);
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(i, j, k, l) = updated_var[5 + l];
       cv(i, j, k, 5 + l) = updated_var[0] * updated_var[5 + l];
     }
@@ -150,7 +150,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
       real enthalpy[MAX_SPEC_NUMBER];
       compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
       // Add species enthalpy together up to kinetic energy to get total enthalpy
-      for (auto l = 0; l < zone->n_spec; l++) {
+      for (auto l = 0; l < param->n_spec; l++) {
         cv(i, j, k, 4) += enthalpy[l] * cv(i, j, k, 5 + l);
       }
       cv(i, j, k, 4) -= bv(i, j, k, 4);  // (\rho e =\rho h - p)

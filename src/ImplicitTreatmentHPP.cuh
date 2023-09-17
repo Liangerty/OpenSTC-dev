@@ -23,10 +23,10 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
           const dim3 bpg{(extent[0] - 1) / tpb.x + 1, (extent[1] - 1) / tpb.y + 1, (extent[2] - 1) / tpb.z + 1};
           switch (chem_src_method) {
             case 1: // EPI
-              EPI<<<bpg, tpb>>>(d_ptr);
+              EPI<<<bpg, tpb>>>(d_ptr, param->n_spec);
               break;
             case 2: // DA
-              DA<<<bpg, tpb>>>(d_ptr);
+              DA<<<bpg, tpb>>>(d_ptr, param->n_spec);
               break;
             default: // explicit
               break;

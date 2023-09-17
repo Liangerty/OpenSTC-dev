@@ -30,7 +30,7 @@ static constexpr double delta_sigma_omega = sigma_omega1 - sigma_omega2;
 static constexpr double delta_beta = beta_1 - beta_2;
 static constexpr double delta_gamma = gamma1 - gamma2;
 
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul);
+__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param);
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 

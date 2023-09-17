@@ -4,7 +4,7 @@
 #include "Constants.h"
 
 namespace cfd::SST {
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul) {
+__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
   const auto &m = zone->metric(i, j, k);
   const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
   const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
@@ -35,8 +35,8 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
   // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
   // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
   // In order to alleviate the computational burden, we put the computation of mut here.
-  const integer n_spec{zone->n_spec};
-  const real rhoK = zone->cv(i, j, k, n_spec + 5);
+  const integer n_spec{param->n_spec}, i_turb_cv{param->i_turb_cv};
+  const real rhoK = zone->cv(i, j, k, i_turb_cv);
   const real tke = zone->sv(i, j, k, n_spec);
   const real omega = zone->sv(i, j, k, n_spec + 1);
   const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
@@ -59,7 +59,7 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
 }
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
-  const integer n_spec{zone->n_spec};
+  const integer n_spec{param->n_spec};
 
   const auto &m = zone->metric(i, j, k);
   const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};

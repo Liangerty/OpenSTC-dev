@@ -24,7 +24,7 @@ reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone
                DParameter *param) {
   auto n_var = zone->n_var;
   if constexpr (mix_model == MixtureModel::FL) {
-    n_var += zone->n_spec;
+    n_var += param->n_spec;
   }
   switch (param->reconstruction) {
     case 2:
@@ -39,7 +39,7 @@ reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone
   if constexpr (mix_model != MixtureModel::Air) {
     real el = 0.5 * (pv_l[1] * pv_l[1] + pv_l[2] * pv_l[2] + pv_l[3] * pv_l[3]);
     real er = 0.5 * (pv_r[1] * pv_r[1] + pv_r[2] * pv_r[2] + pv_r[3] * pv_r[3]);
-    const auto n_spec = zone->n_spec;
+    const auto n_spec = param->n_spec;
     real mw_inv_l{0.0}, mw_inv_r{0.0};
     for (int l = 0; l < n_spec; ++l) {
       mw_inv_l += pv_l[5 + l] / param->mw[l];
@@ -94,7 +94,7 @@ AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *para
   const real ur = (k1 * pv_r[1] + k2 * pv_r[2] + k3 * pv_r[3]) / grad_k_div_jac;
 
   const real pl = pv_l[4], pr = pv_r[4], rho_l = pv_l[0], rho_r = pv_r[0];
-  const integer n_spec = zone->n_spec;
+  const integer n_spec = param->n_spec;
   real gam_l{gamma_air}, gam_r{gamma_air};
   const integer n_var = zone->n_var;
   auto n_reconstruct{n_var};

@@ -56,7 +56,7 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
     for (auto b = 0; b < mesh.n_block; ++b) {
       const auto mx{mesh[b].mx}, my{mesh[b].my};
       dim3 BPG{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, 1};
-      eliminate_k_gradient <<<BPG, tpb >>>(field[b].d_ptr);
+      eliminate_k_gradient <<<BPG, tpb >>>(field[b].d_ptr, param);
     }
   }
 
