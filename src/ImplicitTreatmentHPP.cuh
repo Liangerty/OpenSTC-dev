@@ -45,7 +45,7 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
           switch (parameter.get_int("RANS_model")) {
             case 1:
             case 2: //SST
-              SST::implicit_treat<<<bpg, tpb>>>(d_ptr);
+              SST::implicit_treat<<<bpg, tpb>>>(d_ptr, param);
               break;
             default:break;
           }

@@ -28,8 +28,8 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
     for (integer l = 0; l < 5 + n_spec; ++l) {
       dq(i, j, k, l) /= diag;
     }
-  } else if (mixture_model == MixtureModel::FR) {
-    // Use point implicit method to dispose chemical source
+  } else if constexpr (mixture_model == MixtureModel::FR) {
+    // Use point implicit method to treat chemical source
     for (integer l = 0; l < 5; ++l) {
       dq(i, j, k, l) /= diag;
     }
@@ -50,7 +50,15 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
         }
         break;
     }
-  } // Flamelet method can be added later
+  } else if constexpr (mixture_model == MixtureModel::FL) {
+    for (integer l = 0; l < 5; ++l) {
+      dq(i, j, k, l) /= diag;
+    }
+    for (integer l = param->i_fl_cv; l < zone->n_var; ++l) {
+      dq(i, j, k, l) /= diag;
+    }
+  }
+
 
   if constexpr (turb_method == TurbMethod::RANS) {
     // switch RANS model, and apply point implicit to treat the turbulent part
@@ -58,18 +66,20 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
       switch (param->rans_model) {
         case 1:
         case 2: //SST
-          SST::implicit_treat_for_dq0(zone, diag, i, j, k);
+          SST::implicit_treat_for_dq0(zone, diag, i, j, k, param);
           break;
-        default:break;
+        default:
+          break;
       }
     } else {
       switch (param->rans_model) {
         case 1:
         case 2: //SST
-          dq(i, j, k, n_spec + 5) /= diag;
-          dq(i, j, k, n_spec + 6) /= diag;
+          dq(i, j, k, param->i_turb_cv) /= diag;
+          dq(i, j, k, param->i_turb_cv + 1) /= diag;
           break;
-        default:break;
+        default:
+          break;
       }
     }
   }
@@ -92,7 +102,17 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   auto &dq = zone->dq;
   const auto &sv = zone->sv;
 
-  if constexpr (mixture_model != MixtureModel::Air) {
+  if constexpr (mixture_model == MixtureModel::Air) {
+    h = gamma / (gamma - 1) * pv(i, j, k, 4) / pv(i, j, k, 0) + e;
+  } else if constexpr (mixture_model == MixtureModel::FL) {
+    real enthalpy[MAX_SPEC_NUMBER];
+    const real t{pv(i, j, k, 5)};
+    compute_enthalpy(t, enthalpy, param);
+    for (int l = 0; l < zone->n_spec; ++l) {
+      h += sv(i, j, k, l) * enthalpy[l];
+    }
+    h += e;
+  } else {
     const auto &mw = param->mw;
     real enthalpy[MAX_SPEC_NUMBER];
     const real t{pv(i, j, k, 5)};
@@ -106,8 +126,6 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
     b3 *= gamma;
     b4 *= gamma - 1;
     h += e;
-  } else {
-    h = gamma / (gamma - 1) * pv(i, j, k, 4) / pv(i, j, k, 0) + e;
   }
   const double b1 = xi_x * dq(i, j, k, 1) + xi_y * dq(i, j, k, 2) + xi_z * dq(i, j, k, 3) - U * dq(i, j, k, 0);
   const double b2 = (gamma - 1) * (e * dq(i, j, k, 0) - u * dq(i, j, k, 1) - v * dq(i, j, k, 2) - w * dq(i, j, k, 3) +
@@ -119,8 +137,13 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   convJacTimesDq[3] = w * b1 + xi_z * b2 + lmd1 * dq(i, j, k, 3) + xi_z * (b3 - b4);
   convJacTimesDq[4] = h * b1 + U * b2 + lmd1 * dq(i, j, k, 4) + U * (b3 - b4);
 
-  for (int l = 0; l < zone->n_scal; ++l) {
-    convJacTimesDq[5 + l] = lmd1 * dq(i, j, k, l + 5) + sv(i, j, k, l) * b1;
+  for (integer l = 0; l < param->n_scalar_transported; ++l) {
+    if constexpr (mixture_model != MixtureModel::FL) {
+      convJacTimesDq[5 + l] = lmd1 * dq(i, j, k, 5 + l) + sv(i, j, k, l) * b1;
+    } else {
+      // Flamelet model
+      convJacTimesDq[5 + l] = lmd1 * dq(i, j, k, 5 + l) + sv(i, j, k, l + param->n_spec) * b1;
+    }
   }
 }
 
@@ -128,7 +151,7 @@ template<MixtureModel mixture_model, TurbMethod turb_method>
 __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   // This can be split into 3 kernels, such that the shared memory can be used.
   // E.g., i=2 needs ii=1 and ii=3, while i=4 needs ii=3 and ii=5, thus the ii=3 is recomputed.
-  // If we use a kernel in i direction, with each thread computing an ii, for ii=-1~blockdim,
+  // If we use a kernel in i direction, with each thread computing an ii, for ii=-1~blockDim,
   // then all threads in the block except threadID=0 and blockDim, can use the just computed convJacTimesDq.
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -200,8 +223,9 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
     for (integer l = 0; l < 5 + n_spec; ++l) {
       dqk(i, j, k, l) = dq0(i, j, k, l) + dt_local * dq_total[l] / diag;
     }
-  } else if (mixture_model == MixtureModel::FR) {
+  } else if constexpr (mixture_model == MixtureModel::FR) {
     // Use point implicit method to dispose chemical source
+#pragma unroll
     for (integer l = 0; l < 5; ++l) {
       dqk(i, j, k, l) = dq0(i, j, k, l) + dt_local * dq_total[l] / diag;
     }
@@ -223,7 +247,16 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
         }
         break;
     }
-  } // Flamelet method can be added later
+  } else if constexpr (mixture_model == MixtureModel::FL) {
+    // For flamelet model
+#pragma unroll
+    for (integer l = 0; l < 5; ++l) {
+      dqk(i, j, k, l) = dq0(i, j, k, l) + dt_local * dq_total[l] / diag;
+    }
+    const auto i_fl_cv{param->i_fl_cv};
+    dqk(i, j, k, i_fl_cv) = dq0(i, j, k, i_fl_cv) + dt_local * dq_total[i_fl_cv] / diag;
+    dqk(i, j, k, i_fl_cv + 1) = dq0(i, j, k, i_fl_cv + 1) + dt_local * dq_total[i_fl_cv + 1] / diag;
+  }
 
   if constexpr (turb_method == TurbMethod::RANS) {
     // switch RANS model, and apply point implicit to treat the turbulent part
@@ -231,18 +264,21 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
       switch (param->rans_model) {
         case 1:
         case 2: //SST
-          SST::implicit_treat_for_dqk(zone, diag, i, j, k, dq_total);
+          SST::implicit_treat_for_dqk(zone, diag, i, j, k, dq_total, param);
           break;
-        default:break;
+        default:
+          break;
       }
     } else {
+      const auto i_turb_cv{param->i_turb_cv};
       switch (param->rans_model) {
         case 1:
         case 2: //SST
-          dqk(i, j, k, n_spec + 5) = dq0(i, j, k, n_spec + 5) + dt_local * dq_total[5 + n_spec] / diag;
-          dqk(i, j, k, n_spec + 6) = dq0(i, j, k, n_spec + 6) + dt_local * dq_total[6 + n_spec] / diag;
+          dqk(i, j, k, i_turb_cv) = dq0(i, j, k, i_turb_cv) + dt_local * dq_total[i_turb_cv] / diag;
+          dqk(i, j, k, i_turb_cv + 1) = dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / diag;
           break;
-        default:break;
+        default:
+          break;
       }
     }
   }
@@ -261,7 +297,7 @@ void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_p
   // DQ(0)=DQ/(1+dt*DRho+dt*dS/dQ)
   compute_DQ_0<mixture_model, turb_method><<<bpg, tpb>>>(d_ptr, param);
   // Take care of all such treatments where n_var is used to decide the memory size,
-  // for when flamelet model is used, the data structure should be modified to make the useful data contigous.
+  // for when flamelet model is used, the data structure should be modified to make the useful data contiguous.
   const auto mem_sz = h_ptr->dq.size() * h_ptr->n_var * sizeof(real);
   cudaMemcpy(h_ptr->dq0.data(), h_ptr->dq.data(), mem_sz, cudaMemcpyDeviceToDevice);
 

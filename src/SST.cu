@@ -205,7 +205,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
   }
 }
 
-__global__ void implicit_treat(cfd::DZone *zone) {
+__global__ void implicit_treat(cfd::DZone *zone, const DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
   const integer j = blockDim.y * blockIdx.y + threadIdx.y;
@@ -213,36 +213,38 @@ __global__ void implicit_treat(cfd::DZone *zone) {
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
   // Used in explicit temporal scheme
-  const integer n_spec{zone->n_spec};
+  const integer i_turb_cv{param->i_turb_cv};
   auto &dq = zone->dq;
   const real dt_local = zone->dt_local(i, j, k);
   const auto &src_jac = zone->turb_src_jac;
-  dq(i, j, k, n_spec + 5) /= 1 - dt_local * src_jac(i, j, k, 0);
-  dq(i, j, k, n_spec + 6) /= 1 - dt_local * src_jac(i, j, k, 1);
-}
-
-__device__ void implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, integer k) {
-  // Used in DPLUR, called from device
-  const integer n_spec{zone->n_spec};
-  auto &dq = zone->dq;
-  const real dt_local = zone->dt_local(i, j, k);
-  const auto &src_jac = zone->turb_src_jac;
-  dq(i, j, k, n_spec + 5) /= diag - dt_local * src_jac(i, j, k, 0);
-  dq(i, j, k, n_spec + 6) /= diag - dt_local * src_jac(i, j, k, 1);
+  dq(i, j, k, i_turb_cv) /= 1 - dt_local * src_jac(i, j, k, 0);
+  dq(i, j, k, i_turb_cv + 1) /= 1 - dt_local * src_jac(i, j, k, 1);
 }
 
 __device__ void
-implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total) {
+implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param) {
   // Used in DPLUR, called from device
-  const integer n_spec{zone->n_spec};
+  const integer i_turb_cv{param->i_turb_cv};
+  auto &dq = zone->dq;
+  const real dt_local = zone->dt_local(i, j, k);
+  const auto &src_jac = zone->turb_src_jac;
+  dq(i, j, k, i_turb_cv) /= diag - dt_local * src_jac(i, j, k, 0);
+  dq(i, j, k, i_turb_cv + 1) /= diag - dt_local * src_jac(i, j, k, 1);
+}
+
+__device__ void
+implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total,
+                       const DParameter *param) {
+  // Used in DPLUR, called from device
+  const integer i_turb_cv{param->i_turb_cv};
   auto &dqk = zone->dqk;
   const auto &dq0 = zone->dq0;
   const real dt_local = zone->dt_local(i, j, k);
   const auto &src_jac = zone->turb_src_jac;
-  dqk(i, j, k, n_spec + 5) =
-      dq0(i, j, k, n_spec + 5) + dt_local * dq_total[5 + n_spec] / (diag - dt_local * src_jac(i, j, k, 0));
-  dqk(i, j, k, n_spec + 6) =
-      dq0(i, j, k, n_spec + 6) + dt_local * dq_total[6 + n_spec] / (diag - dt_local * src_jac(i, j, k, 1));
+  dqk(i, j, k, i_turb_cv) =
+      dq0(i, j, k, i_turb_cv) + dt_local * dq_total[i_turb_cv] / (diag - dt_local * src_jac(i, j, k, 0));
+  dqk(i, j, k, i_turb_cv + 1) =
+      dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / (diag - dt_local * src_jac(i, j, k, 1));
 }
 
 __device__ real Wilcox_compressibility_correction(real Mt) {
