@@ -29,4 +29,15 @@ struct DZone;
 
 __device__ void flamelet_source(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 
+__device__ void
+compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param,
+                                          real *yk_ave);
+
+__device__ void
+interpolate_scalar_dissipation_rate_with_given_z_zPrime(real chi_ave, integer n_spec, integer i_z, integer i_zPrime,
+                                                        DParameter *param, real *yk);
+
+__device__ int2
+find_chi_range(const ggxl::Array3D<real> &chi_ave, real chi, integer i_z, integer i_zPrime, integer n_chi);
+
 } // cfd

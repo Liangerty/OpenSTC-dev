@@ -82,7 +82,7 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       update_cv_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
 
       // limit unphysical values computed by the program
-      limit_flow<<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
+      limit_flow<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
 
       // apply boundary conditions
       // Attention: "driver" is a template class, when a template class calls a member function of another template,
@@ -112,18 +112,20 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
     // Finally, test if the simulation reaches convergence state
     if (step % output_screen == 0 || step == 1) {
       real err_max = compute_residual(driver, step);
-//      real err_max = driver.compute_residual(step);
       converged = err_max < parameter.get_real("convergence_criteria");
       if (driver.myid == 0) {
         steady_screen_output(step, err_max, driver.time, driver.res);
-//        driver.steady_screen_output(step, err_max);
       }
     }
     cudaDeviceSynchronize();
     if (step % output_file == 0 || converged) {
-      ioManager.print_field(step);
+      if constexpr (mix_model==MixtureModel::FL){
+        integer n_fl_step{0};
+        cudaMemcpy(&n_fl_step, &(param->n_fl_step), sizeof(integer), cudaMemcpyDeviceToHost);
+        parameter.update_parameter("n_fl_step", n_fl_step);
+      }
+      ioManager.print_field(step, parameter);
       post_process(driver);
-//      driver.post_process();
     }
   }
   delete[] bpg;

@@ -13,13 +13,19 @@ struct IOManager {
   explicit IOManager(integer _myid, const Mesh &_mesh, std::vector<Field> &_field, const Parameter &_parameter,
                      const Species &spec, integer ngg_out);
 
-  void print_field(integer step);
+  void print_field(integer step, const Parameter &parameter);
 };
 
 template<MixtureModel mix_model, TurbMethod turb_method>
-void IOManager<mix_model, turb_method>::print_field(integer step) {
+void IOManager<mix_model, turb_method>::print_field(integer step, const Parameter &parameter) {
   field_io.print_field(step);
   boundary_io.print_boundary();
+
+  if constexpr (mix_model == MixtureModel::FL) {
+    std::ofstream out("output/message/flamelet_step.txt", std::ios::trunc);
+    out << parameter.get_int("n_fl_step") << std::endl;
+    out.close();
+  }
 }
 
 template<MixtureModel mix_model, TurbMethod turb_method>

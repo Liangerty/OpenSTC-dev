@@ -68,9 +68,10 @@ struct DParameter {
 
   // Flamelet library info
   integer n_z = 0, n_zPrime = 0, n_chi = 0;
+  integer n_fl_step = 0;
   real *mix_frac = nullptr;
   ggxl::MatrixDyn<real> zPrime, chi_min, chi_max;
-  ggxl::MatrixDyn<real> chi_min_j, chi_max_j;
+  ggxl::MatrixDyn<integer> chi_min_j, chi_max_j;
   ggxl::Array3D<real> chi_ave;
   ggxl::VectorField3D<real> yk_lib;
   real c_chi{1.0};
@@ -81,7 +82,7 @@ private:
     static constexpr integer max_n_var = 5 + 2;
     real ll[max_n_var];
     real ul[max_n_var];
-    real sv_inf[MAX_SPEC_NUMBER + 2];
+    real sv_inf[MAX_SPEC_NUMBER + 4];
   };
 
 public:

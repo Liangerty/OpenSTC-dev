@@ -59,7 +59,6 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
     }
   }
 
-
   if constexpr (turb_method == TurbMethod::RANS) {
     // switch RANS model, and apply point implicit to treat the turbulent part
     if (param->turb_implicit == 1) {

@@ -20,7 +20,7 @@ public:
   integer myid = 0;
   gxl::Time time;
   const Mesh &mesh;
-  const Parameter &parameter;
+  Parameter &parameter;
   Species spec;
   Reaction reac;
   std::vector<cfd::Field> field; // The flowfield data of the simulation. Every block is a "Field" object
@@ -42,7 +42,7 @@ struct Driver<MixtureModel::FL, turb_method>{
   integer myid = 0;
   gxl::Time time;
   const Mesh &mesh;
-  const Parameter &parameter;
+  Parameter &parameter;
   Species spec;
   FlameletLib flameletLib;
   std::vector<cfd::Field> field;

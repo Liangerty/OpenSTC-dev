@@ -9,6 +9,7 @@
 #include "Constants.h"
 #include "Transport.cuh"
 #include "SST.cuh"
+#include "FlameletLib.cuh"
 
 namespace cfd {
 
@@ -197,11 +198,30 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   velocity = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3); //V^2
 
   auto &sv = zone->sv;
-  if constexpr (mix_model != MixtureModel::Air ||
-                turb_method == TurbMethod::RANS) { // Flamelet method should be written independently.
+  if constexpr (mix_model != MixtureModel::FL) {
     // For multiple species or RANS methods, there will be scalars to be computed
     for (integer l = 0; l < param->n_scalar; ++l) {
       sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;
+    }
+  } else {
+    // Flamelet model
+    for (integer l = 0; l < param->n_scalar_transported; ++l) {
+      sv(i, j, k, l + param->n_spec) = cv(i, j, k, 5 + l) * density_inv;
+    }
+    real yk_ave[MAX_SPEC_NUMBER];
+    memset(yk_ave, 0, sizeof(real) * param->n_spec);
+    compute_massFraction_from_MixtureFraction(zone, i, j, k, param, yk_ave);
+    if (param->n_fl_step > 10000) {
+      for (integer l = 0; l < param->n_spec; ++l) {
+        sv(i, j, k, l) = yk_ave[l];
+      }
+    } else {
+      for (integer l = 0; l < param->n_spec; ++l) {
+        real yk_mix = param->yk_lib(l, 0, 0, 0) +
+                      sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
+        sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
+        ++param->n_fl_step;
+      }
     }
   }
   if constexpr (mix_model != MixtureModel::Air) {
@@ -251,5 +271,5 @@ __device__ void update_bv_1_point(cfd::DZone *zone, DParameter *param, integer i
   velocity = std::sqrt(velocity);
 }
 
-__global__ void eliminate_k_gradient(cfd::DZone *zone, const DParameter* param);
+__global__ void eliminate_k_gradient(cfd::DZone *zone, const DParameter *param);
 }
