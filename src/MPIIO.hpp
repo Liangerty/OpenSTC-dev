@@ -368,7 +368,7 @@ void MPIIO<mix_model, turb_method>::write_common_data_section() {
     auto var = v.ov[0];
     MPI_File_write_at(fp, offset, var, 1, ty, &status);
     offset += memsz;
-    for (int l = 0; l < field[0].n_var - 5; ++l) {
+    for (int l = 0; l < n_scalar; ++l) {
       var = v.sv[l];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;
@@ -530,7 +530,7 @@ void MPIIO<mix_model, turb_method>::print_field(integer step) const {
     auto var = v.ov[0];
     MPI_File_write_at(fp, offset, var, 1, ty, &status);
     offset += memsz;
-    for (int l = 0; l < field[0].n_var - 5; ++l) {
+    for (int l = 0; l < n_scalar; ++l) {
       var = v.sv[l];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;

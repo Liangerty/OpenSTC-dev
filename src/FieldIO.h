@@ -6,6 +6,7 @@
 #include "ChemData.h"
 #include <filesystem>
 #include <fstream>
+#include "gxl_lib/MyString.h"
 
 namespace cfd {
 
@@ -96,7 +97,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
     offset += 4;
     // 4. Variable names.
     for (auto &name: var_name) {
-      write_str(name.c_str(), fp, offset);
+      gxl::write_str(name.c_str(), fp, offset);
     }
 
     // iv. Zones
@@ -106,7 +107,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
       MPI_File_write_at(fp, offset, &zone_marker, 1, MPI_FLOAT, &status);
       offset += 4;
       // 2. Zone name.
-      write_str(("zone " + std::to_string(i)).c_str(), fp, offset);
+      gxl::write_str(("zone " + std::to_string(i)).c_str(), fp, offset);
       // 3. Parent zone. No longer used
       constexpr int32_t parent_zone{-1};
       MPI_File_write_at(fp, offset, &parent_zone, 1, MPI_INT32_T, &status);
@@ -366,7 +367,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_sect
     auto var = v.ov[0];
     MPI_File_write_at(fp, offset, var, 1, ty, &status);
     offset += memsz;
-    for (int l = 0; l < field[0].n_var - 5; ++l) {
+    for (int l = 0; l < n_scalar; ++l) {
       var = v.sv[l];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;
@@ -406,8 +407,8 @@ FieldIO<mix_model, turb_method, output_time_choice>::acquire_variable_names(std:
   }
   if constexpr (mix_model == MixtureModel::FL) {
     nv += 2; // Z, Z_prime
-    var_name.emplace_back("z");
-    var_name.emplace_back("z prime");
+    var_name.emplace_back("MixtureFraction");
+    var_name.emplace_back("MixtureFractionVariance");
   }
   if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
     nv += 1; // mu_t
@@ -529,7 +530,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::print_field(integer st
     auto var = v.ov[0];
     MPI_File_write_at(fp, offset, var, 1, ty, &status);
     offset += memsz;
-    for (int l = 0; l < field[0].n_var - 5; ++l) {
+    for (int l = 0; l < n_scalar; ++l) {
       var = v.sv[l];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;

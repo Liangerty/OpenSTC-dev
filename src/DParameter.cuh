@@ -3,17 +3,29 @@
 #include "Parameter.h"
 #include "Define.h"
 #include "gxl_lib/Matrix.hpp"
+#include "gxl_lib/Array.hpp"
 
 namespace cfd {
 struct Species;
 struct Reaction;
+struct FlameletLib;
 
 struct DParameter {
   DParameter() = default;
 
-  explicit DParameter(Parameter &parameter, Species &species, Reaction &reaction);
+  explicit DParameter(cfd::Parameter &parameter, Species &species, Reaction *reaction,
+                      FlameletLib *flamelet_lib = nullptr);
 
   integer myid = 0;   // The process id of this process
+
+  // Number of equations and variables
+  integer n_var=0;                    // The number of variables in the conservative variable
+  integer n_scalar = 0;               // The number of scalar variables
+  integer n_scalar_transported = 0;   // The number of scalar variables in the conservative equation, this is only different from n_scalar when we use flamelet model
+  integer n_spec = 0;                 // The number of species
+  integer i_fl = 0;                   // The index of flamelet variable in the scalar variable
+  integer i_fl_cv = 0;                // The index of flamelet variable in the conservative variable
+  integer i_turb_cv = 0;              // The index of turbulent variable in the conservative variable
 
   integer inviscid_scheme = 0;  // The tag for inviscid scheme. 3 - AUSM+
   integer reconstruction = 2; // The reconstruction method for inviscid flux computation
@@ -25,8 +37,7 @@ struct DParameter {
   integer compressibility_correction = 0; // Which compressibility correction to be used. 0 - No compressibility correction, 1 - Wilcox's correction, 2 - Sarkar's correction, 3 - Zeman's correction
 
   integer chemSrcMethod = 0;  // For finite rate chemistry, we need to know how to implicitly treat the chemical source
-  integer n_spec = 0;
-  integer n_scalar = 0;
+
   integer n_reac = 0;
   real Pr = 0.72;
   real cfl = 1;
@@ -55,13 +66,23 @@ struct DParameter {
   ggxl::MatrixDyn<real> third_body_coeff;
   real *troe_alpha = nullptr, *troe_t3 = nullptr, *troe_t1 = nullptr, *troe_t2 = nullptr;
 
+  // Flamelet library info
+  integer n_z = 0, n_zPrime = 0, n_chi = 0;
+  integer n_fl_step = 0;
+  real *mix_frac = nullptr;
+  ggxl::MatrixDyn<real> zPrime, chi_min, chi_max;
+  ggxl::MatrixDyn<integer> chi_min_j, chi_max_j;
+  ggxl::Array3D<real> chi_ave;
+  ggxl::VectorField3D<real> yk_lib;
+  real c_chi{1.0};
+
 private:
   struct LimitFlow {
     // ll for lower limit, ul for upper limit.
     static constexpr integer max_n_var = 5 + 2;
     real ll[max_n_var];
     real ul[max_n_var];
-    real sv_inf[MAX_SPEC_NUMBER + 2];
+    real sv_inf[MAX_SPEC_NUMBER + 4];
   };
 
 public:

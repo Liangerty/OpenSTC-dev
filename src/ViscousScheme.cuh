@@ -82,8 +82,8 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -114,7 +114,10 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
           conductivity * (xi_x_div_jac * t_x + xi_y_div_jac * t_y + xi_z_div_jac * t_z);
 
   if constexpr (mix_model != MixtureModel::Air) {
-    const integer n_spec{zone->n_spec};
+    // Here, we only consider the influence of species diffusion.
+    // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
+    // If we are solving flamelet model, this part only contribute to the energy eqn.
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -184,8 +187,10 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
           diffusivity[l] * (diffusion_driven_force[l]
                             - mw_tot * yk[l] * sum_GradXi_cdot_GradY_over_wl)
           - yk[l] * CorrectionVelocityTerm};
-      fv[5 + l] = diffusion_flux;
-      // Add the influence of species diffusion
+      if constexpr (mix_model != MixtureModel::FL) {
+        fv[5 + l] = diffusion_flux;
+      }
+      // Add the influence of species diffusion on total energy
       fv[4] += h[l] * diffusion_flux;
     }
   }
@@ -199,8 +204,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
 
         const real k_xi = sv(i + 1, j, k, it) - sv(i, j, k, it);
@@ -246,9 +250,46 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
         const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
         const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
 
-        fv[5 + n_spec] = (mul + mut * sigma_k) * (xi_x_div_jac * k_x + xi_y_div_jac * k_y + xi_z_div_jac * k_z);
-        fv[6 + n_spec] =
+        const integer i_turb_cv{param->i_turb_cv};
+        fv[i_turb_cv] = (mul + mut * sigma_k) * (xi_x_div_jac * k_x + xi_y_div_jac * k_y + xi_z_div_jac * k_z);
+        fv[i_turb_cv + 1] =
             (mul + mut * sigma_omega) * (xi_x_div_jac * omega_x + xi_y_div_jac * omega_y + xi_z_div_jac * omega_z);
+    }
+  }
+
+  if constexpr (mix_model == MixtureModel::FL) {
+    // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
+    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
+    const auto &sv = zone->sv;
+
+    // First, compute the mixture fraction gradient
+    const real mixFrac_xi = sv(i + 1, j, k, i_fl) - sv(i, j, k, i_fl);
+    const real mixFrac_eta =
+        0.25 * (sv(i, j + 1, k, i_fl) - sv(i, j - 1, k, i_fl) + sv(i + 1, j + 1, k, i_fl) - sv(i + 1, j - 1, k, i_fl));
+    const real mixFrac_zeta =
+        0.25 * (sv(i, j, k + 1, i_fl) - sv(i, j, k - 1, i_fl) + sv(i + 1, j, k + 1, i_fl) - sv(i + 1, j, k - 1, i_fl));
+
+    const real mixFrac_x = mixFrac_xi * xi_x + mixFrac_eta * eta_x + mixFrac_zeta * zeta_x;
+    const real mixFrac_y = mixFrac_xi * xi_y + mixFrac_eta * eta_y + mixFrac_zeta * zeta_y;
+    const real mixFrac_z = mixFrac_xi * xi_z + mixFrac_eta * eta_z + mixFrac_zeta * zeta_z;
+
+    const real rhoD{mul / param->Sc + mut / param->Sct};
+    fv[i_fl_cv] = rhoD * (xi_x_div_jac * mixFrac_x + xi_y_div_jac * mixFrac_y + xi_z_div_jac * mixFrac_z);
+
+    if constexpr (turb_method != TurbMethod::LES) {
+      // For RANS / DES, we also solve the mixture fraction variance eqn.
+      const real mixFracVar_xi = sv(i + 1, j, k, i_fl + 1) - pv(i, j, k, i_fl + 1);
+      const real mixFracVar_eta = 0.25 * (sv(i, j + 1, k, i_fl + 1) - sv(i, j - 1, k, i_fl + 1) +
+                                          sv(i + 1, j + 1, k, i_fl + 1) - sv(i + 1, j - 1, k, i_fl + 1));
+      const real mixFracVar_zeta = 0.25 * (sv(i, j, k + 1, i_fl + 1) - sv(i, j, k - 1, i_fl + 1) +
+                                           sv(i + 1, j, k + 1, i_fl + 1) - sv(i + 1, j, k - 1, i_fl + 1));
+
+      const real mixFracVar_x = mixFracVar_xi * xi_x + mixFracVar_eta * eta_x + mixFracVar_zeta * zeta_x;
+      const real mixFracVar_y = mixFracVar_xi * xi_y + mixFracVar_eta * eta_y + mixFracVar_zeta * zeta_y;
+      const real mixFracVar_z = mixFracVar_xi * xi_z + mixFracVar_eta * eta_z + mixFracVar_zeta * zeta_z;
+
+      fv[i_fl_cv + 1] =
+          rhoD * (xi_x_div_jac * mixFracVar_x + xi_y_div_jac * mixFracVar_y + xi_z_div_jac * mixFracVar_z);
     }
   }
 }
@@ -317,8 +358,8 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -349,7 +390,10 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
           conductivity * (eta_x_div_jac * t_x + eta_y_div_jac * t_y + eta_z_div_jac * t_z);
 
   if constexpr (mix_model != MixtureModel::Air) {
-    const integer n_spec{zone->n_spec};
+    // Here, we only consider the influence of species diffusion.
+    // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
+    // If we are solving flamelet model, this part only contribute to the energy eqn.
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -388,7 +432,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradEta_cdot_GradY_over_wl;
 
     // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
-    if (param->gradPInDiffusionFlux){
+    if (param->gradPInDiffusionFlux) {
       const real p_xi =
           0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j + 1, k, 4) - pv(i - 1, j + 1, k, 4));
       const real p_eta = pv(i, j + 1, k, 4) - pv(i, j, k, 4);
@@ -419,8 +463,10 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
           diffusivity[l] * (diffusion_driven_force[l]
                             - mw_tot * yk[l] * sum_GradEta_cdot_GradY_over_wl)
           - yk[l] * CorrectionVelocityTerm};
-      gv[5 + l] = diffusion_flux;
-      // Add the influence of species diffusion
+      if constexpr (mix_model != MixtureModel::FL) {
+        gv[5 + l] = diffusion_flux;
+      }
+      // Add the influence of species diffusion on total energy
       gv[4] += h[l] * diffusion_flux;
     }
   }
@@ -434,8 +480,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
 
         const real k_xi =
@@ -481,9 +526,46 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
         const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
         const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
 
-        gv[5 + n_spec] = (mul + mut * sigma_k) * (eta_x_div_jac * k_x + eta_y_div_jac * k_y + eta_z_div_jac * k_z);
-        gv[6 + n_spec] =
+        const integer i_turb_cv{param->i_turb_cv};
+        gv[i_turb_cv] = (mul + mut * sigma_k) * (eta_x_div_jac * k_x + eta_y_div_jac * k_y + eta_z_div_jac * k_z);
+        gv[i_turb_cv + 1] =
             (mul + mut * sigma_omega) * (eta_x_div_jac * omega_x + eta_y_div_jac * omega_y + eta_z_div_jac * omega_z);
+    }
+  }
+
+  if constexpr (mix_model == MixtureModel::FL) {
+    // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
+    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
+    const auto &sv = zone->sv;
+
+    // First, compute the mixture fraction gradient
+    const real mixFrac_xi =
+        0.25 * (sv(i + 1, j, k, i_fl) - sv(i - 1, j, k, i_fl) + sv(i + 1, j + 1, k, i_fl) - sv(i - 1, j + 1, k, i_fl));
+    const real mixFrac_eta = sv(i, j + 1, k, i_fl) - sv(i, j, k, i_fl);
+    const real mixFrac_zeta =
+        0.25 * (sv(i, j, k + 1, i_fl) - sv(i, j, k - 1, i_fl) + sv(i, j + 1, k + 1, i_fl) - sv(i, j + 1, k - 1, i_fl));
+
+    const real mixFrac_x = mixFrac_xi * xi_x + mixFrac_eta * eta_x + mixFrac_zeta * zeta_x;
+    const real mixFrac_y = mixFrac_xi * xi_y + mixFrac_eta * eta_y + mixFrac_zeta * zeta_y;
+    const real mixFrac_z = mixFrac_xi * xi_z + mixFrac_eta * eta_z + mixFrac_zeta * zeta_z;
+
+    const real rhoD{mul / param->Sc + mut / param->Sct};
+    gv[i_fl_cv] = rhoD * (eta_x_div_jac * mixFrac_x + eta_y_div_jac * mixFrac_y + eta_z_div_jac * mixFrac_z);
+
+    if constexpr (turb_method != TurbMethod::LES) {
+      // For LES, we do not need to compute the variance of mixture fraction.
+      const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
+                                         sv(i + 1, j + 1, k, i_fl + 1) - sv(i - 1, j + 1, k, i_fl + 1));
+      const real mixFracVar_eta = sv(i, j + 1, k, i_fl + 1) - sv(i, j, k, i_fl + 1);
+      const real mixFracVar_zeta = 0.25 * (sv(i, j, k + 1, i_fl + 1) - sv(i, j, k - 1, i_fl + 1) +
+                                           sv(i, j + 1, k + 1, i_fl + 1) - sv(i, j + 1, k - 1, i_fl + 1));
+
+      const real mixFracVar_x = mixFracVar_xi * xi_x + mixFracVar_eta * eta_x + mixFracVar_zeta * zeta_x;
+      const real mixFracVar_y = mixFracVar_xi * xi_y + mixFracVar_eta * eta_y + mixFracVar_zeta * zeta_y;
+      const real mixFracVar_z = mixFracVar_xi * xi_z + mixFracVar_eta * eta_z + mixFracVar_zeta * zeta_z;
+
+      gv[i_fl_cv + 1] =
+          rhoD * (eta_x_div_jac * mixFracVar_x + eta_y_div_jac * mixFracVar_y + eta_z_div_jac * mixFracVar_z);
     }
   }
 }
@@ -548,8 +630,8 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   if constexpr (turb_method == TurbMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, zone->n_spec) +
-                                                   pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, zone->n_spec));
+      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                   pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec));
       tau_xx += twoThirdrhoKm;
       tau_yy += twoThirdrhoKm;
       tau_zz += twoThirdrhoKm;
@@ -580,7 +662,10 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
           conductivity * (zeta_x_div_jac * t_x + zeta_y_div_jac * t_y + zeta_z_div_jac * t_z);
 
   if constexpr (mix_model != MixtureModel::Air) {
-    const integer n_spec{zone->n_spec};
+    // Here, we only consider the influence of species diffusion.
+    // That is, if we are solving mixture or finite rate, this part will compute the viscous term of species eqns and energy eqn.
+    // If we are solving flamelet model, this part only contribute to the energy eqn.
+    const integer n_spec{param->n_spec};
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
@@ -619,7 +704,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     CorrectionVelocityTerm -= mw_tot * sum_rhoDkYk * sum_GradZeta_cdot_GradY_over_wl;
 
     // Term 3, diffusion caused by pressure gradient, and difference between Yk and Xk, which is more significant when the molecular weight is light.
-    if (param->gradPInDiffusionFlux){
+    if (param->gradPInDiffusionFlux) {
       const real p_xi =
           0.25 * (pv(i + 1, j, k, 4) - pv(i - 1, j, k, 4) + pv(i + 1, j, k + 1, 4) - pv(i - 1, j, k + 1, 4));
       const real p_eta =
@@ -650,8 +735,10 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
           diffusivity[l] * (diffusion_driven_force[l]
                             - mw_tot * yk[l] * sum_GradZeta_cdot_GradY_over_wl)
           - yk[l] * CorrectionVelocityTerm};
-      hv[5 + l] = diffusion_flux;
-      // Add the influence of species diffusion
+      if constexpr (mix_model != MixtureModel::FL) {
+        hv[5 + l] = diffusion_flux;
+      }
+      // Add the influence of species diffusion on total energy
       hv[4] += h[l] * diffusion_flux;
     }
   }
@@ -665,8 +752,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
       case 2: // SST
       default:
         // Default SST
-        const integer n_spec{zone->n_spec};
-        const integer it = zone->n_spec;
+        const integer it = param->n_spec;
         auto &sv = zone->sv;
         const real k_xi =
             0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j, k + 1, it) - sv(i - 1, j, k + 1, it));
@@ -710,10 +796,47 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
         const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
         const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
 
-        hv[5 + n_spec] = (mul + mut * sigma_k) * (zeta_x_div_jac * k_x + zeta_y_div_jac * k_y + zeta_z_div_jac * k_z);
-        hv[6 + n_spec] =
+        const integer i_turb_cv{param->i_turb_cv};
+        hv[i_turb_cv] = (mul + mut * sigma_k) * (zeta_x_div_jac * k_x + zeta_y_div_jac * k_y + zeta_z_div_jac * k_z);
+        hv[i_turb_cv + 1] =
             (mul + mut * sigma_omega) *
             (zeta_x_div_jac * omega_x + zeta_y_div_jac * omega_y + zeta_z_div_jac * omega_z);
+    }
+  }
+
+  if constexpr (mix_model == MixtureModel::FL) {
+    // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
+    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
+    const auto &sv = zone->sv;
+
+    // First, compute the mixture fraction gradient
+    const real mixFrac_xi =
+        0.25 * (sv(i + 1, j, k, i_fl) - sv(i - 1, j, k, i_fl) + sv(i + 1, j, k + 1, i_fl) - sv(i - 1, j, k + 1, i_fl));
+    const real mixFrac_eta =
+        0.25 * (sv(i, j + 1, k, i_fl) - sv(i, j - 1, k, i_fl) + sv(i, j + 1, k + 1, i_fl) - sv(i, j - 1, k + 1, i_fl));
+    const real mixFrac_zeta = sv(i, j, k + 1, i_fl) - sv(i, j, k, i_fl);
+
+    const real mixFrac_x = mixFrac_xi * xi_x + mixFrac_eta * eta_x + mixFrac_zeta * zeta_x;
+    const real mixFrac_y = mixFrac_xi * xi_y + mixFrac_eta * eta_y + mixFrac_zeta * zeta_y;
+    const real mixFrac_z = mixFrac_xi * xi_z + mixFrac_eta * eta_z + mixFrac_zeta * zeta_z;
+
+    const real rhoD{mul / param->Sc + mut / param->Sct};
+    hv[i_fl_cv] = rhoD * (zeta_x_div_jac * mixFrac_x + zeta_y_div_jac * mixFrac_y + zeta_z_div_jac * mixFrac_z);
+
+    if constexpr (turb_method != TurbMethod::LES) {
+      // For LES, we do not need to compute the variance of mixture fraction.
+      const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
+                                         sv(i + 1, j, k + 1, i_fl + 1) - sv(i - 1, j, k + 1, i_fl + 1));
+      const real mixFracVar_eta = 0.25 * (sv(i, j + 1, k, i_fl + 1) - sv(i, j - 1, k, i_fl + 1) +
+                                          sv(i, j + 1, k + 1, i_fl + 1) - sv(i, j - 1, k + 1, i_fl + 1));
+      const real mixFracVar_zeta = sv(i, j, k + 1, i_fl + 1) - sv(i, j, k, i_fl + 1);
+
+      const real mixFracVar_x = mixFracVar_xi * xi_x + mixFracVar_eta * eta_x + mixFracVar_zeta * zeta_x;
+      const real mixFracVar_y = mixFracVar_xi * xi_y + mixFracVar_eta * eta_y + mixFracVar_zeta * zeta_y;
+      const real mixFracVar_z = mixFracVar_xi * xi_z + mixFracVar_eta * eta_z + mixFracVar_zeta * zeta_z;
+
+      hv[i_fl_cv + 1] =
+          rhoD * (zeta_x_div_jac * mixFracVar_x + zeta_y_div_jac * mixFracVar_y + zeta_z_div_jac * mixFracVar_z);
     }
   }
 }

@@ -3,17 +3,52 @@
 
 cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in) {
   const integer mx{block.mx}, my{block.my}, mz{block.mz}, ngg{block.ngg};
-  n_var = parameter.get_int("n_var");
-  integer n_scalar{0};
+  // Let us re-compute the number of variables to be solved here.
+  n_var = 5;
+  // The variable "n_scalar_transported" is the number of scalar variables to be transported.
+  integer n_scalar_transported{0};
   integer n_other_var{1}; // Default, mach number
+  // The variable "n_scalar" is the number of scalar variables in total, including those not transported.
+  // This is different from the variable "n_scalar_transported" only when the flamelet model is used.
+  integer n_scalar{0};
+  // turbulent variable in sv array is always located after mass fractions, thus its label is always n_spec;
+  // however, for conservative array, it may depend on whether the employed method is flamelet or finite rate.
+  // This label, "i_turb_cv", is introduced to label the index of the first turbulent variable in the conservative variable array.
+  integer i_turb_cv{0}, i_fl_cv{0};
 
-  bv.resize(mx, my, mz, 6, ngg);
-  n_scalar += parameter.get_int("n_spec");
-  if (parameter.get_int("turbulence_method") == 1) {
-    // RANS
-    n_scalar += parameter.get_int("n_turb");
-    n_other_var += 1; // mut
+  if (parameter.get_bool("species")) {
+    n_scalar += parameter.get_int("n_spec");
+    if (parameter.get_int("reaction") != 2) {
+      // Mixture / Finite rate chemistry
+      n_scalar_transported += parameter.get_int("n_spec");
+      i_turb_cv = parameter.get_int("n_spec") + 5;
+    } else {
+      // Flamelet model
+      n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
+      n_scalar += 2;
+      i_turb_cv = 5;
+      i_fl_cv = 5 + parameter.get_int("n_turb");
+    }
   }
+  if (parameter.get_bool("turbulence")) {
+    // turbulence simulation
+    if (parameter.get_int("turbulence_method") == 1) {
+      // RANS
+      n_scalar_transported += parameter.get_int("n_turb");
+      n_scalar += parameter.get_int("n_turb");
+      ++n_other_var; // mut
+    }
+  }
+  n_var += n_scalar_transported;
+  parameter.update_parameter("n_var", n_var);
+  parameter.update_parameter("n_scalar", n_scalar);
+  parameter.update_parameter("n_scalar_transported", n_scalar_transported);
+  parameter.update_parameter("i_turb_cv", i_turb_cv);
+  parameter.update_parameter("i_fl", parameter.get_int("n_turb") + parameter.get_int("n_spec"));
+  parameter.update_parameter("i_fl_cv", i_fl_cv);
+
+  // Acquire memory for variable arrays
+  bv.resize(mx, my, mz, 6, ngg);
   sv.resize(mx, my, mz, n_scalar, ngg);
   ov.resize(mx, my, mz, n_other_var, ngg);
 }
@@ -96,8 +131,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   cudaMemcpy(h_ptr->metric.data(), block.metric.data(), sizeof(gxl::Matrix<real, 3, 3, 1>) * h_ptr->metric.size(),
              cudaMemcpyHostToDevice);
 
-  h_ptr->n_var = parameter.get_int("n_var");
-  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, h_ptr->ngg);
+  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
   h_ptr->bv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 6, h_ptr->ngg);
   cudaMemcpy(h_ptr->bv.data(), bv.data(), sizeof(real) * h_ptr->bv.size() * 6, cudaMemcpyHostToDevice);
   h_ptr->bv_last.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 4, 0);
@@ -107,23 +141,27 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->mul.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
   h_ptr->thermal_conductivity.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
 
-  h_ptr->n_spec = parameter.get_int("n_spec");
-  h_ptr->n_scal = parameter.get_int("n_scalar");
-  h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_scal, h_ptr->ngg);
-  cudaMemcpy(h_ptr->sv.data(), sv.data(), sizeof(real) * h_ptr->sv.size() * h_ptr->n_scal, cudaMemcpyHostToDevice);
-  h_ptr->rho_D.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, h_ptr->ngg);
-  if (h_ptr->n_spec > 0) {
+  const auto n_spec{parameter.get_int("n_spec")};
+  const auto n_scalar = parameter.get_int("n_scalar");
+  h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_scalar, h_ptr->ngg);
+  cudaMemcpy(h_ptr->sv.data(), sv.data(), sizeof(real) * h_ptr->sv.size() * n_scalar, cudaMemcpyHostToDevice);
+  h_ptr->rho_D.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, h_ptr->ngg);
+  if (n_spec > 0) {
     h_ptr->gamma.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
     h_ptr->cp.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-    if (parameter.get_int("n_reac") > 0) {
+    if (parameter.get_int("reaction") == 1) {
       // Finite rate chemistry
       if (const integer chemSrcMethod = parameter.get_int("chemSrcMethod");chemSrcMethod == 1) {
         // EPI
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec * h_ptr->n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec * n_spec, 0);
       } else if (chemSrcMethod == 2) {
         // DA
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, 0);
       }
+    } else if (parameter.get_int("reaction") == 2) {
+      // Flamelet model
+      h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+      // Maybe we can also implicitly treat the source term here.
     }
   }
   if (parameter.get_int("turbulence_method") == 1) {
@@ -150,15 +188,15 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
 //    }
 //  }
 
-  h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 0);
+  h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
   h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   if (parameter.get_int("implicit_method") == 1) {//DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
-    // Except those inner or parallel comnnunication faces, they need to get the dq from neighbor blocks.
-    h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
-    h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
-    h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->n_var, 1);
+    // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
+    h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
+    h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
+    h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
     h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
     h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }
@@ -178,5 +216,5 @@ void cfd::Field::copy_data_from_device(const Parameter &parameter) {
   if (parameter.get_int("turbulence_method") == 1) {
     cudaMemcpy(ov[1], h_ptr->mut.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
   }
-  cudaMemcpy(sv.data(), h_ptr->sv.data(), h_ptr->n_scal * size * sizeof(real), cudaMemcpyDeviceToHost);
+  cudaMemcpy(sv.data(), h_ptr->sv.data(), parameter.get_int("n_scalar") * size * sizeof(real), cudaMemcpyDeviceToHost);
 }

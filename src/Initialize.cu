@@ -1,4 +1,5 @@
 #include "Initialize.cuh"
+#include "MixtureFraction.h"
 
 namespace cfd {
 void initialize_from_start(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species) {
@@ -45,7 +46,7 @@ void initialize_from_start(Parameter &parameter, const Mesh &mesh, std::vector<F
 void initialize_spec_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mesh,
                                  std::vector<Field> &field, Species &species) {
   // This can also be implemented like the from_start one, which can have patch.
-  // But currently, for easy to implement, just intialize the whole flowfield to the inflow composition,
+  // But currently, for easy to implement, just initialize the whole flowfield to the inflow composition,
   // which means that other species would have to be computed from boundary conditions.
   // If the need for initialize species in groups is strong,
   // then we implement it just by copying the previous function "initialize_from_start",
@@ -70,12 +71,29 @@ void initialize_spec_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mes
   if (parameter.get_int("myid") == 0) {
     printf("Compute from single species result. The species field is initialized with freestream.\n");
   }
+  // If flamelet model, the mixture fraction should also be initialized
+  if (parameter.get_int("reaction") == 2) {
+    const integer i_fl{parameter.get_int("i_fl")};
+    for (int blk = 0; blk < mesh.n_block; ++blk) {
+      const integer mx{mesh[blk].mx}, my{mesh[blk].my}, mz{mesh[blk].mz};
+      auto sv_in = inflow.sv;
+      auto &sv = field[blk].sv;
+      for (int k = 0; k < mz; ++k) {
+        for (int j = 0; j < my; ++j) {
+          for (int i = 0; i < mx; ++i) {
+            sv(i, j, k, i_fl) = sv_in[i_fl];
+            sv(i, j, k, i_fl + 1) = 0;
+          }
+        }
+      }
+    }
+  }
 }
 
 void initialize_turb_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mesh,
                                  std::vector<Field> &field, Species &species) {
   // This can also be implemented like the from_start one, which can have patch.
-  // But currently, for easy to implement, just intialize the whole flowfield to the main inflow turbulent state.
+  // But currently, for easy to implement, just initialize the whole flowfield to the main inflow turbulent state.
   // If the need for initialize turbulence in groups is strong,
   // then we implement it just by copying the previous function "initialize_from_start",
   // which should be easy.
@@ -98,6 +116,72 @@ void initialize_turb_from_inflow(cfd::Parameter &parameter, const cfd::Mesh &mes
   }
   if (parameter.get_int("myid") == 0) {
     printf("Compute from laminar result. The turbulent field is initialized with freestream.\n");
+  }
+}
+
+void initialize_mixture_fraction_from_species(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field,
+                                              Species &species) {
+  // This is called when we need to compute the mixture fraction from a given species field.
+  // We need to know the form of coupling functions, the boundary conditions of the 2 streams in order to know how to compute the mixture fraction
+  Inflow *fuel = nullptr, *oxidizer = nullptr;
+
+  // First find and initialize the fuel and oxidizer stream
+  auto &bcs = parameter.get_string_array("boundary_conditions");
+  for (auto &bc_name: bcs) {
+    auto &bc = parameter.get_struct(bc_name);
+    auto &bc_type = std::get<std::string>(bc.at("type"));
+    if (bc_type == "inflow") {
+      auto z = std::get<real>(bc.at("mixture_fraction"));
+      if (abs(z - 1) < 1e-10) {
+        // fuel
+        if (fuel == nullptr) {
+          fuel = new Inflow(bc_name, species, parameter);
+        } else {
+          printf("Two fuel stream! Please check the boundary conditions.\n");
+        }
+      } else if (abs(z) < 1e-10) {
+        // oxidizer
+        if (oxidizer == nullptr) {
+          oxidizer = new Inflow(bc_name, species, parameter);
+        } else {
+          printf("Two oxidizer stream! Please check the boundary conditions.\n");
+        }
+      }
+    }
+  }
+  if (fuel == nullptr || oxidizer == nullptr) {
+    printf("Cannot find fuel or oxidizer stream! Please check the boundary conditions.\n");
+    exit(1);
+  }
+
+  // Next, see which definition of mixture fraction is used.
+  MixtureFraction *mixtureFraction = nullptr;
+  if (species.elem_list.find("C") != species.elem_list.end()) {
+    mixtureFraction = new BilgerCH(*fuel, *oxidizer, species, parameter.get_int("myid"));
+  } else {
+    mixtureFraction = new BilgerH(*fuel, *oxidizer, species, parameter.get_int("myid"));
+  }
+
+  std::vector<real> yk(species.n_spec, 0);
+  for (int blk = 0; blk < mesh.n_block; ++blk) {
+    const integer mx{mesh[blk].mx}, my{mesh[blk].my}, mz{mesh[blk].mz};
+    auto &sv = field[blk].sv;
+    auto i_fl = parameter.get_int("i_fl");
+    for (int k = 0; k < mz; ++k) {
+      for (int j = 0; j < my; ++j) {
+        for (int i = 0; i < mx; ++i) {
+          for (integer l = 0; l < species.n_spec; ++l) {
+            yk[l] = sv(i, j, k, l);
+          }
+          sv(i, j, k, i_fl) = mixtureFraction->compute_mixture_fraction(yk);
+          sv(i, j, k, i_fl + 1) = 0;
+        }
+      }
+    }
+  }
+  if (parameter.get_int("myid") == 0) {
+    printf(
+        "Previous results contain only species mass fraction info, the mixture fraction is computed via the Bilger's definition.\n");
   }
 }
 

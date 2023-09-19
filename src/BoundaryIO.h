@@ -4,6 +4,7 @@
 #include "BoundCond.cuh"
 #include "Define.h"
 #include "gxl_lib/MyString.h"
+#include "gxl_lib/Array.hpp"
 
 namespace cfd {
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>
@@ -11,7 +12,7 @@ struct BoundaryIO {
   const Parameter &parameter;
   const Mesh &mesh;
   const Species &species;
-  std::vector<Field> &field;
+  const std::vector<Field> &field;
   // The labels of the boundary conditions to be outputted
   std::vector<int> labels_to_output;
   // For every boundary condition to be outputted, record its bc name
@@ -32,7 +33,7 @@ struct BoundaryIO {
   void print_boundary();
 
 private:
-  void write_header(std::vector<Field> &_field);
+  void write_header(const std::vector<Field> &_field);
 };
 
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
@@ -162,11 +163,11 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
       var_name.emplace_back("omega");
     }
   }
-//  if constexpr (mix_model == MixtureModel::FL) {
-//    nv += 2; // Z, Z_prime
-//    var_name.emplace_back("z");
-//    var_name.emplace_back("z prime");
-//  }
+  if constexpr (mix_model == MixtureModel::FL) {
+    nv += 2; // Z, Z_prime
+    var_name.emplace_back("MixtureFraction");
+    var_name.emplace_back("MixtureFractionVariance");
+  }
   if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
     nv += 1; // mu_t
     var_name.emplace_back("mut");
@@ -176,7 +177,7 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
 
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
 void
-BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(std::vector<Field> &_field) {
+BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::vector<Field> &_field) {
   const std::filesystem::path out_dir("output/field");
   const integer n_proc{parameter.get_int("n_proc")};
   for (int l = 0; l < labels_to_output.size(); ++l) {
@@ -399,7 +400,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(std::vector
       offset += 8;
       MPI_File_write_at(fp, offset, &max_val, 1, MPI_DOUBLE, &status);
       offset += 8;
-      auto &v{field[blk]};
+      const auto &v{field[blk]};
       // Later, the max/min values of flow variables are computed.
       offset_minmax_var[l].emplace_back(offset);
       for (int m = 0; m < 6; ++m) {
@@ -497,7 +498,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(std::vector
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
       }
-      for (int m = 0; m < field[0].n_var - 5; ++m) {
+      for (int m = 0; m < n_scalar; ++m) {
         auto var = v.sv[m];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
@@ -628,7 +629,7 @@ void BoundaryIO<mix_model, turb_method, output_time_choice>::print_boundary() {
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
       }
-      for (int m = 0; m < field[0].n_var - 5; ++m) {
+      for (int m = 0; m < n_scalar; ++m) {
         auto var = v.sv[m];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;

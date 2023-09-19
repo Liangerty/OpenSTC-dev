@@ -16,8 +16,8 @@ int     inviscid_scheme     =   3
 // First, specify which mixture model to be used. 0-air, 1-mixture
 bool    species             =   0
 
-// Second, specify if reactions are activated. 0-no reaction, 1-finite rate chemistry
-bool    reaction            =   0
+// Second, specify if reactions are activated. 0-no reaction, 1-finite rate chemistry, 2-flamelet model
+int     reaction            =   0
 
 // Third, specify the file name of species and reaction information
 string mechanism_file = chemistry/combustion_mechanism.inp
@@ -45,3 +45,8 @@ int     turbulence_method   =   1
 
 // About the species diffusion flux. If we add the pressure gradient term. 0-no(default), 1-yes
 bool       gradPInDiffusionFlux =   0
+
+///* Settings about boundary conditions *///
+
+// Which boundary condition is used to initialize the whole flowfield
+string reference_state = farfield

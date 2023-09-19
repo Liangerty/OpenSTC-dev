@@ -47,6 +47,7 @@ public:
   [[nodiscard]] const bool &get_bool(const std::string &name) const { return bool_parameters.at(name); }
 
   std::string &get_string(const std::string &name) { return string_parameters.at(name); }
+  [[nodiscard]] const std::string &get_string(const std::string &name) const  { return string_parameters.at(name); }
 
   [[nodiscard]] const auto &get_struct(const std::string &name) const { return struct_array.at(name); }
 

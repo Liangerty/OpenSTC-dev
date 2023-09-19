@@ -3,7 +3,7 @@
 #include "BoundCond.h"
 #include "Mesh.h"
 #include "Field.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "FieldOperation.cuh"
 #include "SST.cuh"
 #include "Parallel.h"
@@ -50,7 +50,7 @@ void link_boundary_and_condition(const std::vector<Boundary> &boundary, BCInfo *
                                  integer i_zone);
 
 template<MixtureModel mix_model, TurbMethod turb_method>
-__global__ void apply_symmetry(DZone *zone, integer i_face) {
+__global__ void apply_symmetry(DZone *zone, integer i_face, DParameter *param) {
   const auto &b = zone->boundary[i_face];
   auto range_start = b.range_start, range_end = b.range_end;
   integer i = range_start[0] + (integer) (blockDim.x * blockIdx.x + threadIdx.x);
@@ -87,7 +87,7 @@ __global__ void apply_symmetry(DZone *zone, integer i_face) {
   bv(i, j, k, 4) = bv(inner_idx[0], inner_idx[1], inner_idx[2], 4);
   bv(i, j, k, 5) = bv(inner_idx[0], inner_idx[1], inner_idx[2], 5);
   auto &sv = zone->sv;
-  for (integer l = 0; l < zone->n_scal; ++l) {
+  for (integer l = 0; l < param->n_scalar; ++l) {
     sv(i, j, k, l) = sv(inner_idx[0], inner_idx[1], inner_idx[2], l);
   }
 
@@ -101,8 +101,16 @@ __global__ void apply_symmetry(DZone *zone, integer i_face) {
   cv(i, j, k, 4) = cv(inner_idx[0], inner_idx[1], inner_idx[2], 4) -
                    0.5 * bv(inner_idx[0], inner_idx[1], inner_idx[2], 0) * (u1 * u1 + v1 * v1 + w1 * w1) +
                    0.5 * bv(i, j, k, 0) * (u_t * u_t + v_t * v_t + w_t * w_t);
-  for (integer l = 0; l < zone->n_scal; ++l) {
-    cv(i, j, k, 5 + l) = bv(i, j, k, 0) * sv(i, j, k, l);
+  if constexpr (mix_model == MixtureModel::FL) {
+    // Flamelet model
+    const integer n_spec{param->n_spec};
+    for (integer l = 0; l < param->n_scalar_transported; ++l) {
+      cv(i, j, k, 5 + l) = bv(i, j, k, 0) * sv(i, j, k, n_spec + l);
+    }
+  } else {
+    for (integer l = 0; l < param->n_scalar; ++l) {
+      cv(i, j, k, 5 + l) = bv(i, j, k, 0) * sv(i, j, k, l);
+    }
   }
 
   // For ghost grids
@@ -121,7 +129,7 @@ __global__ void apply_symmetry(DZone *zone, integer i_face) {
                                       bv(gi, gj, gk, 3) * bv(gi, gj, gk, 3));
     bv(gi, gj, gk, 4) = bv(ii, ij, ik, 4);
     bv(gi, gj, gk, 5) = bv(ii, ij, ik, 5);
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(gi, gj, gk, l) = sv(ii, ij, ik, l);
     }
 
@@ -132,7 +140,7 @@ __global__ void apply_symmetry(DZone *zone, integer i_face) {
 }
 
 template<TurbMethod turb_method>
-__global__ void apply_outflow(DZone *zone, integer i_face) {
+__global__ void apply_outflow(DZone *zone, integer i_face, const DParameter *param) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
   const auto &b = zone->boundary[i_face];
@@ -151,7 +159,7 @@ __global__ void apply_outflow(DZone *zone, integer i_face) {
     for (integer l = 0; l < 6; ++l) {
       bv(gi, gj, gk, l) = bv(i, j, k, l);
     }
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(gi, gj, gk, l) = sv(i, j, k, l);
     }
     if constexpr (turb_method == TurbMethod::RANS) {
@@ -175,7 +183,7 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   auto &bv = zone->bv;
   auto &sv = zone->sv;
 
-  const integer n_scalar = zone->n_scal;
+  const integer n_scalar = param->n_scalar;
 
   const real density = inflow->density;
   const real u = inflow->u;
@@ -191,9 +199,19 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   bv(i, j, k, 3) = w;
   bv(i, j, k, 4) = inflow->pressure;
   bv(i, j, k, 5) = inflow->temperature;
-  for (int l = 0; l < n_scalar; ++l) {
-    sv(i, j, k, l) = i_sv[l];
-    cv(i, j, k, 5 + l) = density * i_sv[l];
+  if constexpr (mix_model != MixtureModel::FL) {
+    for (int l = 0; l < n_scalar; ++l) {
+      sv(i, j, k, l) = i_sv[l];
+      cv(i, j, k, 5 + l) = density * i_sv[l];
+    }
+  } else {
+    for (int l = 0; l < n_scalar; ++l) {
+      sv(i, j, k, l) = i_sv[l];
+    }
+    const integer n_spec{param->n_spec};
+    for (integer l = 0; l < param->n_scalar_transported; ++l) {
+      cv(i, j, k, 5 + l) = density * inflow->sv[n_spec + l];
+    }
   }
   if constexpr (turb_method == TurbMethod::RANS) {
     zone->mut(i, j, k) = inflow->mut;
@@ -203,7 +221,6 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   cv(i, j, k, 2) = density * v;
   cv(i, j, k, 3) = density * w;
   compute_total_energy<mix_model>(i, j, k, zone, param);
-
 
   for (integer g = 1; g <= ngg; g++) {
     const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -247,24 +264,20 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
   const real u_face{nx * u_b + ny * v_b + nz * w_b};
 
   // Interpolate the scalar values from internal nodes, which are used to compute gamma, after which, acoustic speed.
-  const integer n_scalar = zone->n_scal, n_spec = zone->n_spec;
+  const integer n_scalar = param->n_scalar, n_spec = param->n_spec;
   auto &sv = zone->sv;
   real gamma_b{gamma_air}, mw{mw_air};
   real sv_b[MAX_SPEC_NUMBER + 2], cp[MAX_SPEC_NUMBER];
   if constexpr (mix_model != MixtureModel::Air) {
     for (integer l = 0; l < n_scalar; ++l) {
-//      sv_b[l] = 2 * sv(ii1, ij1, ik1, l) - sv(ii2, ij2, ik2, l);
       sv_b[l] = sv(i, j, k, l);
     }
-    gamma_b=zone->gamma(i,j,k);
-//    compute_cp(bv(i, j, k, 5), cp, param);
-    real mw_inv{0};//cp_tot{0},
+    gamma_b = zone->gamma(i, j, k);
+    real mw_inv{0};
     for (integer l = 0; l < n_spec; ++l) {
-//      cp_tot += cp[l] * sv_b[l];
       mw_inv += sv_b[l] / param->mw[l];
     }
     mw = 1.0 / mw_inv;
-//    gamma_b = cp_tot / (cp_tot - R_u * mw_inv);
   }
   const real p_b{bv(i, j, k, 4)}, rho_b{bv(i, j, k, 0)};
   const real a_b{sqrt(gamma_b * p_b / rho_b)};
@@ -286,9 +299,18 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     bv(i, j, k, 3) = w;
     bv(i, j, k, 4) = farfield->pressure;
     bv(i, j, k, 5) = farfield->temperature;
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = i_sv[l];
-      cv(i, j, k, 5 + l) = density * i_sv[l];
+    if constexpr (mix_model != MixtureModel::FL) {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = i_sv[l];
+        cv(i, j, k, 5 + l) = density * i_sv[l];
+      }
+    } else {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = i_sv[l];
+      }
+      for (integer l = 0; l < param->n_scalar_transported; ++l) {
+        cv(i, j, k, 5 + l) = density * i_sv[n_spec + l];
+      }
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = farfield->mut;
@@ -358,9 +380,6 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
         u = u_b + (Un - u_face) * nx;
         v = v_b + (Un - u_face) * ny;
         w = w_b + (Un - u_face) * nz;
-//        for (int l = 0; l < n_scalar; ++l) {
-//          sv_b[l] = sv(i, j, k, l);
-//        }
         mut = zone->mut(i, j, k);
       }
       density = pow(c_b * c_b / (gamma_air * s_b), 1 / (gamma_air - 1));
@@ -418,9 +437,18 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     bv(i, j, k, 3) = w;
     bv(i, j, k, 4) = pressure;
     bv(i, j, k, 5) = temperature;
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = sv_b[l];
-      cv(i, j, k, 5 + l) = density * sv_b[l];
+    if constexpr (mix_model != MixtureModel::FL) {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = sv_b[l];
+        cv(i, j, k, 5 + l) = density * sv_b[l];
+      }
+    } else {
+      for (int l = 0; l < n_scalar; ++l) {
+        sv(i, j, k, l) = sv_b[l];
+      }
+      for (integer l = 0; l < param->n_scalar_transported; ++l) {
+        cv(i, j, k, 5 + l) = density * sv_b[n_spec + l];
+      }
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = mut;
@@ -465,7 +493,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
   auto &bv = zone->bv;
   auto &cv = zone->cv;
   auto &sv = zone->sv;
-  const integer n_spec = zone->n_spec;
+  const integer n_spec = param->n_spec;
 
   real t_wall{wall->temperature};
 
@@ -507,6 +535,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
 
   // turbulent boundary condition
   if constexpr (turb_method == TurbMethod::RANS) {
+    const auto i_turb_cv{ param->i_turb_cv };
     if (param->rans_model == 2) {
       // SST
       real mu_wall{0};
@@ -517,14 +546,23 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
       }
       const real dy = zone->wall_distance(idx[0], idx[1], idx[2]);
       sv(i, j, k, n_spec) = 0;
-      cv(i, j, k, n_spec + 5) = 0;
+      cv(i, j, k, i_turb_cv) = 0;
       if (dy > 1e-25) {
         sv(i, j, k, n_spec + 1) = 60 * mu_wall / (rho_wall * SST::beta_1 * dy * dy);
       } else {
         sv(i, j, k, n_spec + 1) = sv(idx[0], idx[1], idx[2], n_spec + 1);
       }
-      cv(i, j, k, n_spec + 6) = rho_wall * sv(i, j, k, n_spec + 1);
+      cv(i, j, k, i_turb_cv + 1) = rho_wall * sv(i, j, k, n_spec + 1);
     }
+  }
+
+  if constexpr (mix_model == MixtureModel::FL) {
+    // Flamelet model
+    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
+    sv(i, j, k, i_fl) = sv(idx[0], idx[1], idx[2], i_fl);
+    sv(i, j, k, i_fl + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1);
+    cv(i, j, k, i_fl_cv) = sv(idx[0], idx[1], idx[2], i_fl) * rho_wall;
+    cv(i, j, k, i_fl_cv + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1) * rho_wall;
   }
 
   for (int g = 1; g <= ngg; ++g) {
@@ -548,7 +586,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
     if constexpr (mix_model != MixtureModel::Air) {
       const auto mwk = param->mw;
       mw = 0;
-      for (integer l = 0; l < zone->n_spec; ++l) {
+      for (integer l = 0; l < param->n_spec; ++l) {
         sv(i_gh[0], i_gh[1], i_gh[2], l) = sv(i_in[0], i_in[1], i_in[2], l);
         mw += sv(i_gh[0], i_gh[1], i_gh[2], l) / mwk[l];
       }
@@ -571,6 +609,11 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
         sv(i_gh[0], i_gh[1], i_gh[2], n_spec + 1) = sv(i, j, k, n_spec + 1);
         zone->mut(i_gh[0], i_gh[1], i_gh[2]) = 0;
       }
+    }
+
+    if constexpr (mix_model == MixtureModel::FL) {
+      sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl) = sv(i_in[0], i_in[1], i_in[2], param->i_fl);
+      sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl + 1) = sv(i_in[0], i_in[1], i_in[2], param->i_fl + 1);
     }
   }
 }
@@ -637,7 +680,7 @@ __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DPara
 
     if constexpr (turb_method == TurbMethod::RANS) {
       const real u_bar{bv(gi, gj, gk, 1) * nx + bv(gi, gj, gk, 2) * ny + bv(gi, gj, gk, 3) * nz};
-      const integer n_scalar = zone->n_scal;
+      const integer n_scalar = param->n_scalar;
       if (u_bar > 0) {
         // The normal velocity points out of the domain, which means the value should be acquired from internal nodes.
         for (int l = 0; l < n_scalar; ++l) {
@@ -677,8 +720,9 @@ __global__ void apply_back_pressure(DZone *zone, BackPressure *backPressure, DPa
       bv(gi, gj, gk, l) = bv(i, j, k, l);
     }
     bv(gi, gj, gk, 4) = backPressure->pressure;
+    // This should be modified later, as p is specified, temperature is extrapolated, the density should be acquired from equation of state instead of extrapolation.
     bv(gi, gj, gk, 5) = bv(i, j, k, 5);
-    for (integer l = 0; l < zone->n_scal; ++l) {
+    for (integer l = 0; l < param->n_scalar; ++l) {
       sv(gi, gj, gk, l) = sv(i, j, k, l);
     }
     if constexpr (turb_method == TurbMethod::RANS) {
@@ -731,7 +775,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_outflow<turb_method> <<<BPG, TPB>>>(field.d_ptr, i_face);
+      apply_outflow<turb_method> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
     }
   }
   for (size_t l = 0; l < n_back_pressure; l++) {
@@ -812,7 +856,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_symmetry<mix_model, turb_method> <<<BPG, TPB>>>(field.d_ptr, i_face);
+      apply_symmetry<mix_model, turb_method> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
     }
   }
 

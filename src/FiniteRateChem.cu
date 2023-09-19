@@ -233,7 +233,7 @@ compute_chem_src_jacobian_diagonal(DZone *zone, integer i, integer j, integer k,
   }
 }
 
-__global__ void EPI(DZone *zone) {
+__global__ void EPI(DZone *zone, integer n_spec) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
   const integer j = blockDim.y * blockIdx.y + threadIdx.y;
@@ -241,7 +241,6 @@ __global__ void EPI(DZone *zone) {
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
   auto &chem_jac = zone->chem_src_jac;
-  const integer n_spec{zone->n_spec};
   real lhs[MAX_SPEC_NUMBER * MAX_SPEC_NUMBER];
   memset(lhs, 0, MAX_SPEC_NUMBER * MAX_SPEC_NUMBER * sizeof(real));
   const real dt{zone->dt_local(i, j, k)};
@@ -255,11 +254,10 @@ __global__ void EPI(DZone *zone) {
       }
     }
   }
-  solve_chem_system(lhs, zone, i, j, k);
+  solve_chem_system(lhs, zone, i, j, k, n_spec);
 }
 
-__device__ void EPI_for_dq0(DZone *zone, real diag, integer i, integer j, integer k) {
-  const integer n_spec{zone->n_spec};
+__device__ void EPI_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, integer n_spec) {
   real lhs[MAX_SPEC_NUMBER * MAX_SPEC_NUMBER];
   memset(lhs, 0, MAX_SPEC_NUMBER * MAX_SPEC_NUMBER * sizeof(real));
   const real dt{zone->dt_local(i, j, k)};
@@ -274,11 +272,10 @@ __device__ void EPI_for_dq0(DZone *zone, real diag, integer i, integer j, intege
       }
     }
   }
-  solve_chem_system(lhs, zone, i, j, k);
+  solve_chem_system(lhs, zone, i, j, k, n_spec);
 }
 
-__device__ void EPI_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total) {
-  const integer n_spec{zone->n_spec};
+__device__ void EPI_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total, integer n_spec) {
   real lhs[MAX_SPEC_NUMBER * MAX_SPEC_NUMBER];
   memset(lhs, 0, MAX_SPEC_NUMBER * MAX_SPEC_NUMBER * sizeof(real));
   const real dt{zone->dt_local(i, j, k)};
@@ -308,8 +305,8 @@ __device__ void EPI_for_dqk(DZone *zone, real diag, integer i, integer j, intege
   }
 }
 
-__device__ void solve_chem_system(real *lhs, DZone *zone, integer i, integer j, integer k) {
-  const int dim{zone->n_spec};
+__device__ void solve_chem_system(real *lhs, DZone *zone, integer i, integer j, integer k, integer n_spec) {
+  const int dim{n_spec};
   integer ipiv[MAX_SPEC_NUMBER];
   memset(ipiv, 0, MAX_SPEC_NUMBER * sizeof(integer));
 
@@ -422,7 +419,7 @@ __device__ void solve_chem_system(real *lhs, real *rhs, integer dim) {
   }
 }
 
-__global__ void DA(DZone *zone) {
+__global__ void DA(DZone *zone, integer n_spec) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
   const integer j = blockDim.y * blockIdx.y + threadIdx.y;
@@ -431,7 +428,7 @@ __global__ void DA(DZone *zone) {
 
   const real dt{zone->dt_local(i, j, k)};
   auto &chem_jac = zone->chem_src_jac;
-  for (int l = 0; l < zone->n_spec; ++l) {
+  for (int l = 0; l < n_spec; ++l) {
     zone->dq(i, j, k, 5 + l) /= 1 - dt * chem_jac(i, j, k, l);
   }
 }

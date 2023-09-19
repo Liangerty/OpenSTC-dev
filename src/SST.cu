@@ -4,7 +4,7 @@
 #include "Constants.h"
 
 namespace cfd::SST {
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul) {
+__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
   const auto &m = zone->metric(i, j, k);
   const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
   const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
@@ -35,12 +35,12 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
   // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
   // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
   // In order to alleviate the computational burden, we put the computation of mut here.
-  const integer n_spec{zone->n_spec};
-  const real rhoK = zone->cv(i, j, k, n_spec + 5);
+  const integer n_spec{param->n_spec}, i_turb_cv{param->i_turb_cv};
+  const real density = zone->bv(i, j, k, 0);
   const real tke = zone->sv(i, j, k, n_spec);
+  const real rhoK = density * tke;
   const real omega = zone->sv(i, j, k, n_spec + 1);
   const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
-  const real density = zone->bv(i, j, k, 0);
 
   // If wall, mut=0. Else, compute mut as in the if statement.
   real f2{1};
@@ -59,7 +59,7 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
 }
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
-  const integer n_spec{zone->n_spec};
+  const integer n_spec{param->n_spec};
 
   const auto &m = zone->metric(i, j, k);
   const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
@@ -189,14 +189,14 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
                (u_z + w_x) * (u_z + w_x) + (v_z + w_y) * (v_z + w_y)) - 2.0 / 3 * rhoK * divU;
     const real diss_k = betaStar * rhoK * omega;
     const real jac = zone->jac(i, j, k);
-    auto &dq = zone->dq;
-    dq(i, j, k, n_spec + 5) += jac * (prod_k - diss_k);
+    const integer i_turb_cv{param->i_turb_cv};
+    zone->dq(i, j, k, i_turb_cv) += jac * (prod_k - diss_k);
 
     // omega source term
     const real gamma = SST::gamma2 + SST::delta_gamma * f1;
     const real prod_omega = gamma * density / mut * prod_k + (1 - f1) * inter_var;
     const real diss_omega = beta * density * omega * omega;
-    dq(i, j, k, n_spec + 6) += jac * (prod_omega - diss_omega);
+    zone->dq(i, j, k, i_turb_cv + 1) += jac * (prod_omega - diss_omega);
   }
 
   if (param->turb_implicit == 1) {
@@ -205,7 +205,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
   }
 }
 
-__global__ void implicit_treat(cfd::DZone *zone) {
+__global__ void implicit_treat(cfd::DZone *zone, const DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
   const integer j = blockDim.y * blockIdx.y + threadIdx.y;
@@ -213,36 +213,38 @@ __global__ void implicit_treat(cfd::DZone *zone) {
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
   // Used in explicit temporal scheme
-  const integer n_spec{zone->n_spec};
+  const integer i_turb_cv{param->i_turb_cv};
   auto &dq = zone->dq;
   const real dt_local = zone->dt_local(i, j, k);
   const auto &src_jac = zone->turb_src_jac;
-  dq(i, j, k, n_spec + 5) /= 1 - dt_local * src_jac(i, j, k, 0);
-  dq(i, j, k, n_spec + 6) /= 1 - dt_local * src_jac(i, j, k, 1);
-}
-
-__device__ void implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, integer k) {
-  // Used in DPLUR, called from device
-  const integer n_spec{zone->n_spec};
-  auto &dq = zone->dq;
-  const real dt_local = zone->dt_local(i, j, k);
-  const auto &src_jac = zone->turb_src_jac;
-  dq(i, j, k, n_spec + 5) /= diag - dt_local * src_jac(i, j, k, 0);
-  dq(i, j, k, n_spec + 6) /= diag - dt_local * src_jac(i, j, k, 1);
+  dq(i, j, k, i_turb_cv) /= 1 - dt_local * src_jac(i, j, k, 0);
+  dq(i, j, k, i_turb_cv + 1) /= 1 - dt_local * src_jac(i, j, k, 1);
 }
 
 __device__ void
-implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total) {
+implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param) {
   // Used in DPLUR, called from device
-  const integer n_spec{zone->n_spec};
+  const integer i_turb_cv{param->i_turb_cv};
+  auto &dq = zone->dq;
+  const real dt_local = zone->dt_local(i, j, k);
+  const auto &src_jac = zone->turb_src_jac;
+  dq(i, j, k, i_turb_cv) /= diag - dt_local * src_jac(i, j, k, 0);
+  dq(i, j, k, i_turb_cv + 1) /= diag - dt_local * src_jac(i, j, k, 1);
+}
+
+__device__ void
+implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total,
+                       const DParameter *param) {
+  // Used in DPLUR, called from device
+  const integer i_turb_cv{param->i_turb_cv};
   auto &dqk = zone->dqk;
   const auto &dq0 = zone->dq0;
   const real dt_local = zone->dt_local(i, j, k);
   const auto &src_jac = zone->turb_src_jac;
-  dqk(i, j, k, n_spec + 5) =
-      dq0(i, j, k, n_spec + 5) + dt_local * dq_total[5 + n_spec] / (diag - dt_local * src_jac(i, j, k, 0));
-  dqk(i, j, k, n_spec + 6) =
-      dq0(i, j, k, n_spec + 6) + dt_local * dq_total[6 + n_spec] / (diag - dt_local * src_jac(i, j, k, 1));
+  dqk(i, j, k, i_turb_cv) =
+      dq0(i, j, k, i_turb_cv) + dt_local * dq_total[i_turb_cv] / (diag - dt_local * src_jac(i, j, k, 0));
+  dqk(i, j, k, i_turb_cv + 1) =
+      dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / (diag - dt_local * src_jac(i, j, k, 1));
 }
 
 __device__ real Wilcox_compressibility_correction(real Mt) {

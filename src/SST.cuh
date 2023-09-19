@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Define.h"
-#include "DParameter.h"
+#include "DParameter.cuh"
 
 namespace cfd {
 struct DZone;
@@ -30,7 +30,7 @@ static constexpr double delta_sigma_omega = sigma_omega1 - sigma_omega2;
 static constexpr double delta_beta = beta_1 - beta_2;
 static constexpr double delta_gamma = gamma1 - gamma2;
 
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul);
+__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param);
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 
@@ -58,10 +58,10 @@ compute_hv_2nd_order(DZone *zone, real *hv, DParameter *param, integer i, intege
                      real xi_z, real eta_x, real eta_y, real eta_z, real zeta_x, real zeta_y, real zeta_z, real mul,
                      real mut, real zeta_x_div_jac, real zeta_y_div_jac, real zeta_z_div_jac);
 
-__global__ void implicit_treat(DZone *zone);
+__global__ void implicit_treat(DZone *zone, const DParameter *param);
 
-__device__ void implicit_treat_for_dq0(DZone *zone, real diag, integer i, integer j, integer k);
+__device__ void implicit_treat_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param);
 
-__device__ void implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total);
+__device__ void implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total, const DParameter *param);
 }
 }

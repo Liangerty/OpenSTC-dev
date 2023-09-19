@@ -67,8 +67,11 @@ cfd::Species::Species(Parameter &parameter) {
       MpiParallel::exit();
     }
     parameter.update_parameter("n_spec", num_spec);
-    parameter.update_parameter("n_var", parameter.get_int("n_var") + num_spec);
-    parameter.update_parameter("n_scalar", parameter.get_int("n_scalar") + num_spec);
+    if (parameter.get_int("reaction")!=2){
+      // Not flamelet model, update these variables. If flamelet, these variables will be updated later.
+      parameter.update_parameter("n_var", parameter.get_int("n_var") + num_spec);
+      parameter.update_parameter("n_scalar", parameter.get_int("n_scalar") + num_spec);
+    }
 
     if (!has_therm) {
       file.close();
@@ -416,7 +419,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   if (!parameter.get_bool("species")) {
     return;
   }
-  if (!parameter.get_bool("reaction")) {
+  if (parameter.get_int("reaction") != 1) {
     return;
   }
   std::ifstream file("./input_files/" + parameter.get_string("mechanism_file"));
@@ -427,7 +430,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   std::string key{};
   line >> key >> key;
   if (!key.empty()) {
-    // The units are not default units, we need some convertion here.
+    // The units are not default units, we need some conversion here.
     // Currently, we just use the default ones, here is blanked.
   }
 
@@ -438,6 +441,7 @@ cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   gxl::getline_to_stream(file, input, line, gxl::Case::upper);
   while (input != "END") {
     if (input[0] == '!' || input.empty()) {
+      gxl::getline_to_stream(file, input, line, gxl::Case::upper);
       continue;
     }
 

@@ -6,7 +6,8 @@
 namespace cfd {
 template<MixtureModel mix_model, TurbMethod turb_method>
 void
-compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var);
+compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                      const Parameter &parameter);
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void
@@ -35,12 +36,17 @@ __device__ void select_inviscid_scheme(DZone *zone, real *pv, integer tid, DPara
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 void
-compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var) {
+compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
+                      const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
   constexpr integer block_dim = 128;
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
-  const auto shared_mem = (block_dim * n_var // fc
-                           + n_computation_per_block * (n_var + 3 + 1)) * sizeof(real); // pv[n_var]+metric[3]+jacobian
+  auto shared_mem = (block_dim * n_var // fc
+                     + n_computation_per_block * (n_var + 3 + 1)) * sizeof(real); // pv[n_var]+metric[3]+jacobian
+  if constexpr (mix_model == MixtureModel::FL) {
+    // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
+    shared_mem += n_computation_per_block * parameter.get_int("n_spec") * sizeof(real);
+  }
 
   for (auto dir = 0; dir < 2; ++dir) {
     integer tpb[3]{1, 1, 1};
@@ -86,19 +92,23 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
 
   // load variables to shared memory
   extern __shared__ real s[];
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
+  auto n_reconstruct{n_var};
+  if constexpr (mix_model == MixtureModel::FL) {
+    n_reconstruct += param->n_spec;
+  }
   real *pv = s;
-  real *metric = &pv[n_point * n_var];
+  real *metric = &pv[n_point * n_reconstruct];
   real *jac = &metric[n_point * 3];
   real *fc = &jac[n_point];
 
   const integer i_shared = tid - 1 + ngg;
   for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
-    pv[i_shared * n_var + l] = zone->bv(idx[0], idx[1], idx[2], l);
+    pv[i_shared * n_reconstruct + l] = zone->bv(idx[0], idx[1], idx[2], l);
   }
-  const auto n_scalar{zone->n_scal};
-  for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
-    pv[i_shared * n_var + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
+  const auto n_scalar{param->n_scalar};
+  for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, z, zPrime
+    pv[i_shared * n_reconstruct + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
   }
   for (auto l = 1; l < 4; ++l) {
     metric[i_shared * 3 + l - 1] = zone->metric(idx[0], idx[1], idx[2])(direction + 1, l);
@@ -113,10 +123,10 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       const integer g_idx[3]{idx[0] - i * labels[0], idx[1] - i * labels[1], idx[2] - i * labels[2]};
 
       for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
-        pv[ig_shared * n_var + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
+        pv[ig_shared * n_reconstruct + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
-        pv[ig_shared * n_var + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
+        pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 1; l < 4; ++l) {
         metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
@@ -131,10 +141,10 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       const integer g_idx[3]{idx[0] + i * labels[0], idx[1] + i * labels[1], idx[2] + i * labels[2]};
 
       for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
-        pv[ig_shared * n_var + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
+        pv[ig_shared * n_reconstruct + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
-        pv[ig_shared * n_var + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
+        pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 1; l < 4; ++l) {
         metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
@@ -164,7 +174,8 @@ select_inviscid_scheme(DZone *zone, real *pv, integer tid, DParameter *param, re
   switch (inviscid_scheme) {
     case 2: // Roe
     case 3: // AUSM+
-    default:AUSMP_compute_inviscid_flux<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac);
+    default:
+      AUSMP_compute_inviscid_flux<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac);
       break;
   }
 }
@@ -200,7 +211,7 @@ viscous_flux_fv(cfd::DZone *zone, integer max_extent, cfd::DParameter *param) {
   idx[2] = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (idx[0] >= max_extent) return;
   const auto tid = threadIdx.x;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *fv = s;
@@ -229,7 +240,7 @@ __global__ void viscous_flux_gv(cfd::DZone *zone, integer max_extent, cfd::DPara
   idx[2] = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (idx[1] >= max_extent) return;
   const auto tid = threadIdx.y;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *gv = s;
@@ -258,7 +269,7 @@ __global__ void viscous_flux_hv(cfd::DZone *zone, integer max_extent, cfd::DPara
   idx[2] = (integer) ((blockDim.z - 1) * blockIdx.z + threadIdx.z) - 1;
   if (idx[2] >= max_extent) return;
   const auto tid = threadIdx.z;
-  const auto n_var{zone->n_var};
+  const auto n_var{param->n_var};
 
   extern __shared__ real s[];
   real *hv = s;

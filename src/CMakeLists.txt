@@ -8,18 +8,20 @@
 list(APPEND src_file
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
-  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.h DPLURHPP.cuh Driver.cu Driver.cuh
+  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
   Element.h Element.cpp
   Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h
+  FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
   ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
   Limiter.cuh
-  main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu
+  main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
-  Reconstruction.cu Reconstruction.cuh
-  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu
+  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh
+  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu
   ViscousScheme.cuh
+  WallDistance.cuh
 
   gxl_lib/Array.hpp
   gxl_lib/MyString.cpp

@@ -1,5 +1,5 @@
 #include "Transport.cuh"
-#include "DParameter.h"
+#include "DParameter.cuh"
 #include "Field.h"
 #include "Constants.h"
 
