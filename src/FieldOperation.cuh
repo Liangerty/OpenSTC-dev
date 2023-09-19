@@ -220,8 +220,8 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
         real yk_mix = param->yk_lib(l, 0, 0, 0) +
                       sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
         sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
-        ++param->n_fl_step;
       }
+      ++param->n_fl_step;
     }
   }
   if constexpr (mix_model != MixtureModel::Air) {

@@ -31,7 +31,9 @@ void FlameletLib::read_ACANS_flamelet(const Parameter &parameter) {
   for (integer i = 0; i <= n_z; ++i) {
     for (integer j = 0; j <= n_zPrime; ++j) {
       for (integer k = 0; k < n_chi; ++k) {
+        gxl::getline_to_stream(file, input, line);
         line >> z[i] >> zPrime(j, i) >> chi_ave(k, j, i);
+        gxl::getline_to_stream(file, input, line);
         for (integer l = 0; l < n_spec; ++l)
           line >> yk(l, k, j, i);
       }
@@ -43,6 +45,7 @@ void FlameletLib::read_ACANS_flamelet(const Parameter &parameter) {
   gxl::getline_to_stream(file, input, line);
   line >> fzst;
   fz.resize(n_z + 1);
+  gxl::getline_to_stream(file, input, line);
   for (integer i = 0; i <= n_z; ++i) {
     line >> fz[i];
   }
@@ -152,7 +155,7 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
 
   // Find the range of mixture fraction
   integer z1{0};
-  const auto &z_lib{param->mix_frac};
+  const auto z_lib{param->mix_frac};
   for (integer l = 0; l < mz_lib; ++l) {
     if (mixFrac_ave >= z_lib[l] && mixFrac_ave < z_lib[l + 1]) {
       z1 = l;
@@ -163,7 +166,6 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
 
   // Next, apply a binary interpolation at z1 and z2, respectively.
   const auto chi_ave{zone->scalar_diss_rate(i, j, k)};
-  const auto &chi_ave_lib{param->chi_ave};
   // First, at z1
   real yk_z1[MAX_SPEC_NUMBER];
   memset(yk_z1, 0, sizeof(real) * MAX_SPEC_NUMBER);

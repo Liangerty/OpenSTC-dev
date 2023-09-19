@@ -6,7 +6,8 @@
 namespace cfd {
 template<MixtureModel mix_model, TurbMethod turb_method>
 void
-compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var);
+compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                      const Parameter &parameter);
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void
@@ -35,7 +36,8 @@ __device__ void select_inviscid_scheme(DZone *zone, real *pv, integer tid, DPara
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 void
-compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var) {
+compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
+                      const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
   constexpr integer block_dim = 128;
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
@@ -43,7 +45,7 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
                      + n_computation_per_block * (n_var + 3 + 1)) * sizeof(real); // pv[n_var]+metric[3]+jacobian
   if constexpr (mix_model == MixtureModel::FL) {
     // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
-    shared_mem += n_computation_per_block * param->n_spec * sizeof(real);
+    shared_mem += n_computation_per_block * parameter.get_int("n_spec") * sizeof(real);
   }
 
   for (auto dir = 0; dir < 2; ++dir) {

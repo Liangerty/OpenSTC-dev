@@ -156,7 +156,7 @@ void initialize_mixture_fraction_from_species(Parameter &parameter, const Mesh &
 
   // Next, see which definition of mixture fraction is used.
   MixtureFraction *mixtureFraction = nullptr;
-  if (species.elem_list.contains("C")) {
+  if (species.elem_list.find("C")!=species.elem_list.end()) {
     mixtureFraction = new BilgerCH(*fuel, *oxidizer, species, parameter.get_int("myid"));
   } else {
     mixtureFraction = new BilgerH(*fuel, *oxidizer, species, parameter.get_int("myid"));

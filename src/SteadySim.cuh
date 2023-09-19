@@ -70,7 +70,7 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       // Second, for each block, compute the residual dq
       // First, compute the source term, because properties such as mut are updated here.
       compute_source<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
-      compute_inviscid_flux<mix_model, turb_method>(mesh[b], field[b].d_ptr, param, n_var);
+      compute_inviscid_flux<mix_model, turb_method>(mesh[b], field[b].d_ptr, param, n_var, parameter);
       compute_viscous_flux<mix_model, turb_method>(mesh[b], field[b].d_ptr, param, n_var);
 
       // compute the local time step
