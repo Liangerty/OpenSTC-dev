@@ -204,7 +204,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
       compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
       // Add species enthalpy together up to kinetic energy to get total enthalpy
       for (auto l = 0; l < param->n_spec; l++) {
-        cv(i, j, k, 4) += enthalpy[l] * cv(i, j, k, 5 + l);
+        cv(i, j, k, 4) += enthalpy[l] * updated_var[0] * sv(i, j, k, l);
       }
       cv(i, j, k, 4) -= bv(i, j, k, 4);  // (\rho e =\rho h - p)
     }

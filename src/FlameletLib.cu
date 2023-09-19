@@ -175,7 +175,7 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
     }
   } else {
     // Interpolate into the mixture fraction variance
-    if (mixFracVariance >= z1 * (1 - z1)) {
+    if (mixFracVariance >= z_lib[z1] * (1 - z_lib[z1])) {
       const integer z_prime_1{param->n_zPrime};
       // For z1, z_prime_1, find the scalar dissipation rate range for the interpolation
       interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_1, param, yk_z1);
@@ -212,7 +212,7 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
     }
   }else{
     // Interpolate into the mixture fraction variance
-    if (mixFracVariance >= z2 * (1 - z2)) {
+    if (mixFracVariance >= z_lib[z2] * (1 - z_lib[z2])) {
       const integer z_prime_2{param->n_zPrime};
       // For z2, z_prime_2, find the scalar dissipation rate range for the interpolation
       interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_2, param, yk_z2);

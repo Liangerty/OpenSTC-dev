@@ -4,6 +4,7 @@
 #include "BoundCond.cuh"
 #include "Define.h"
 #include "gxl_lib/MyString.h"
+#include "gxl_lib/Array.hpp"
 
 namespace cfd {
 template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>

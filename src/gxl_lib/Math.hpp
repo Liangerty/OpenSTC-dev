@@ -4,7 +4,6 @@
 // #include <vector>
 // #include <numeric>
 #include <cmath>
-#include <numbers>
 
 namespace gxl{
 template <typename T>
@@ -32,10 +31,12 @@ T erfcInv(T z, T eps=1e-5){
   if (z>1) x=-1;
   if (std::abs(z-1)<0.02) return 0;
 
+  const double inv_sqrt_pi = 1.0 / sqrt(3.14159265358979);
+
   while (step<step_max && err>eps){
     ++step;
     T f_x= std::erfc(x) - z;
-    T df_dx=-2*std::numbers::inv_sqrtpi_v<T>*std::exp(-x*x);
+    T df_dx=-2* inv_sqrt_pi *std::exp(-x*x);
     T x1= x - f_x / df_dx;
     err=std::abs((x1-x)/x);
     x=x1;
