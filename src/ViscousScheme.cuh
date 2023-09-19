@@ -829,7 +829,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
                                          sv(i + 1, j, k + 1, i_fl + 1) - sv(i - 1, j, k + 1, i_fl + 1));
       const real mixFracVar_eta = 0.25 * (sv(i, j + 1, k, i_fl + 1) - sv(i, j - 1, k, i_fl + 1) +
                                           sv(i, j + 1, k + 1, i_fl + 1) - sv(i, j - 1, k + 1, i_fl + 1));
-      const real mixFracVar_zeta = sv(i, j, k + 1, i_fl + 1) - sv(i, j, k - 1, i_fl + 1);
+      const real mixFracVar_zeta = sv(i, j, k + 1, i_fl + 1) - sv(i, j, k, i_fl + 1);
 
       const real mixFracVar_x = mixFracVar_xi * xi_x + mixFracVar_eta * eta_x + mixFracVar_zeta * zeta_x;
       const real mixFracVar_y = mixFracVar_xi * xi_y + mixFracVar_eta * eta_y + mixFracVar_zeta * zeta_y;

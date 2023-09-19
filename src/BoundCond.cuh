@@ -535,6 +535,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
 
   // turbulent boundary condition
   if constexpr (turb_method == TurbMethod::RANS) {
+    const auto i_turb_cv{ param->i_turb_cv };
     if (param->rans_model == 2) {
       // SST
       real mu_wall{0};
@@ -545,13 +546,13 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
       }
       const real dy = zone->wall_distance(idx[0], idx[1], idx[2]);
       sv(i, j, k, n_spec) = 0;
-      cv(i, j, k, n_spec + 5) = 0;
+      cv(i, j, k, i_turb_cv) = 0;
       if (dy > 1e-25) {
         sv(i, j, k, n_spec + 1) = 60 * mu_wall / (rho_wall * SST::beta_1 * dy * dy);
       } else {
         sv(i, j, k, n_spec + 1) = sv(idx[0], idx[1], idx[2], n_spec + 1);
       }
-      cv(i, j, k, n_spec + 6) = rho_wall * sv(i, j, k, n_spec + 1);
+      cv(i, j, k, i_turb_cv + 1) = rho_wall * sv(i, j, k, n_spec + 1);
     }
   }
 
