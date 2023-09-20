@@ -143,8 +143,6 @@ backward_reaction_rate(real t, const real *kf, const real *concentration, const 
       }
       const real kc{std::pow(temp_t, order[i]) * std::exp(-d_gibbs)};
       kb[i] = kf[i] / kc;
-//    } else {
-//      kb[i] = arrhenius(t, param->A2[i], param->b2[i], param->Ea2[i]);
     }
   }
 

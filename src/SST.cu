@@ -35,7 +35,7 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
   // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
   // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
   // In order to alleviate the computational burden, we put the computation of mut here.
-  const integer n_spec{param->n_spec}, i_turb_cv{param->i_turb_cv};
+  const integer n_spec{param->n_spec};
   const real density = zone->bv(i, j, k, 0);
   const real tke = zone->sv(i, j, k, n_spec);
   const real rhoK = density * tke;

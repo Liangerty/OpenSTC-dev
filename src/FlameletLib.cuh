@@ -40,4 +40,6 @@ interpolate_scalar_dissipation_rate_with_given_z_zPrime(real chi_ave, integer n_
 __device__ int2
 find_chi_range(const ggxl::Array3D<real> &chi_ave, real chi, integer i_z, integer i_zPrime, integer n_chi);
 
+__global__ void update_n_fl_step(DParameter *param);
+
 } // cfd

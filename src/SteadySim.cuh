@@ -55,6 +55,10 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       break;
     }
 
+    if constexpr (mix_model==MixtureModel::FL){
+      update_n_fl_step<<<1,1>>>(param);
+    }
+
     // Start a single iteration
     // First, store the value of last step
     if (step % output_screen == 0) {

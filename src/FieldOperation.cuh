@@ -221,44 +221,6 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
                       sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
         sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
       }
-      ++param->n_fl_step;
-    }
-  }
-  if constexpr (mix_model != MixtureModel::Air) {
-    compute_temperature(i, j, k, param, zone);
-  } else {
-    // Air
-    bv(i, j, k, 4) = (gamma_air - 1) * (cv(i, j, k, 4) - 0.5 * bv(i, j, k, 0) * velocity);
-    bv(i, j, k, 5) = bv(i, j, k, 4) * mw_air * density_inv / R_u;
-  }
-  velocity = std::sqrt(velocity);
-}
-
-template<MixtureModel mix_model, TurbMethod turb_method>
-__device__ void update_bv_1_point(cfd::DZone *zone, DParameter *param, integer i, integer j, integer k) {
-  auto &cv = zone->cv;
-
-  auto &bv = zone->bv;
-  auto &velocity = zone->vel(i, j, k);
-
-  bv(i, j, k, 0) = cv(i, j, k, 0);
-  const real density_inv = 1.0 / cv(i, j, k, 0);
-  bv(i, j, k, 1) = cv(i, j, k, 1) * density_inv;
-  bv(i, j, k, 2) = cv(i, j, k, 2) * density_inv;
-  bv(i, j, k, 3) = cv(i, j, k, 3) * density_inv;
-  velocity = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3); //V^2
-
-  auto &sv = zone->sv;
-  if constexpr (mix_model == MixtureModel::FL) {
-    // Flamelet model
-    for (integer l = 0; l < param->n_scalar_transported; ++l) {
-      sv(i, j, k, l + param->n_spec) = cv(i, j, k, 5 + l) * density_inv;
-    }
-    // TODO: There should be a step to compute the mass fractions from the new mixture fraction.
-  } else {
-    // For multiple species or RANS methods, there will be scalars to be computed
-    for (integer l = 0; l < param->n_scalar; ++l) {
-      sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;
     }
   }
   if constexpr (mix_model != MixtureModel::Air) {
