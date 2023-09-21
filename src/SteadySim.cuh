@@ -55,8 +55,8 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       break;
     }
 
-    if constexpr (mix_model==MixtureModel::FL){
-      update_n_fl_step<<<1,1>>>(param);
+    if constexpr (mix_model == MixtureModel::FL) {
+      update_n_fl_step<<<1, 1>>>(param);
     }
 
     // Start a single iteration
@@ -83,7 +83,8 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       implicit_treatment<mix_model, turb_method>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr);
 
       // update conservative and basic variables
-      update_cv_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+//      update_cv_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+      update_q_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
 
       // limit unphysical values computed by the program
       limit_flow<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
@@ -123,7 +124,7 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
     }
     cudaDeviceSynchronize();
     if (step % output_file == 0 || converged) {
-      if constexpr (mix_model==MixtureModel::FL){
+      if constexpr (mix_model == MixtureModel::FL) {
         integer n_fl_step{0};
         cudaMemcpy(&n_fl_step, &(param->n_fl_step), sizeof(integer), cudaMemcpyDeviceToHost);
         parameter.update_parameter("n_fl_step", n_fl_step);

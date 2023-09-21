@@ -169,6 +169,63 @@ __global__ void initialize_mut(DZone *zone, DParameter *param) {
   }
 }
 
+template<MixtureModel mixture_model>
+__device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone *zone, DParameter *param, real *q) {
+  auto &bv = zone->bv;
+  auto &vel = zone->vel;
+  auto &sv = zone->sv;
+
+  vel(i, j, k) = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3);
+  q[4] = 0.5 * vel(i, j, k);
+  if constexpr (mixture_model != MixtureModel::Air) {
+    real enthalpy[MAX_SPEC_NUMBER];
+    compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
+    // Add species enthalpy together up to kinetic energy to get total enthalpy
+    for (auto l = 0; l < param->n_spec; l++) {
+      // h = \Sum_{i=1}^{n_spec} h_i * Y_i
+      q[4] += enthalpy[l] * sv(i, j, k, l);
+    }
+    q[4] *= bv(i, j, k, 0); // \rho * h
+    q[4] -= bv(i, j, k, 4); // (\rho e =\rho h - p)
+  } else {
+    q[4] += bv(i, j, k, 4) / (gamma_air - 1);
+  }
+  vel(i, j, k) = sqrt(vel(i, j, k));
+}
+
+
+template<MixtureModel mix_model, TurbMethod turb_method>
+__device__ void compute_q_from_pv(cfd::DZone *zone, DParameter *param, integer i, integer j, integer k, real *q) {
+  const auto &bv = zone->bv;
+
+  const real rho = bv(i, j, k, 0);
+  const real u = bv(i, j, k, 1);
+  const real v = bv(i, j, k, 2);
+  const real w = bv(i, j, k, 3);
+
+  q[0] = rho;
+  q[1] = rho * u;
+  q[2] = rho * v;
+  q[3] = rho * w;
+  // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
+  const auto &sv = zone->sv;
+  if constexpr (mix_model != MixtureModel::FL) {
+    const integer n_scalar{param->n_scalar};
+    for (auto l = 0; l < n_scalar; ++l) {
+      q[5 + l] = rho * sv(i, j, k, l);
+    }
+  } else {
+    // Flamelet model
+    const integer n_spec{param->n_spec};
+    const integer n_scalar_transported{param->n_scalar_transported};
+    for (auto l = 0; l < n_scalar_transported; ++l) {
+      q[5 + l] = rho * sv(i, j, k, l + n_spec);
+    }
+  }
+
+  compute_total_energy<mix_model>(i, j, k, zone, param, q);
+}
+
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
@@ -225,6 +282,75 @@ __global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param) {
   }
   if constexpr (mix_model != MixtureModel::Air) {
     compute_temperature(i, j, k, param, zone);
+  } else {
+    // Air
+    bv(i, j, k, 4) = (gamma_air - 1) * (cv(i, j, k, 4) - 0.5 * bv(i, j, k, 0) * velocity);
+    bv(i, j, k, 5) = bv(i, j, k, 4) * mw_air * density_inv / R_u;
+  }
+  velocity = std::sqrt(velocity);
+}
+
+template<MixtureModel mix_model, TurbMethod turb_method>
+__global__ void update_q_and_bv(cfd::DZone *zone, DParameter *param) {
+  const integer extent[3]{zone->mx, zone->my, zone->mz};
+  const auto i = (integer) (blockDim.x * blockIdx.x + threadIdx.x);
+  const auto j = (integer) (blockDim.y * blockIdx.y + threadIdx.y);
+  const auto k = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
+  if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
+
+  auto &cv = zone->cv;
+
+  real q[5 + MAX_SPEC_NUMBER + 4];
+  memset(q, 0, (5 + MAX_SPEC_NUMBER + 4) * sizeof(real));
+
+  compute_q_from_pv<mix_model, turb_method>(zone, param, i, j, k, q);
+
+  real dt_div_jac = zone->dt_local(i, j, k) / zone->jac(i, j, k);
+  for (integer l = 0; l < param->n_var; ++l) {
+    q[l] += zone->dq(i, j, k, l) * dt_div_jac;
+  }
+  if (extent[2] == 1) {
+    q[3] = 0;
+  }
+
+  auto &bv = zone->bv;
+  auto &velocity = zone->vel(i, j, k);
+
+  bv(i, j, k, 0) = q[0];
+  const real density_inv = 1.0 / q[0];
+  bv(i, j, k, 1) = q[1] * density_inv;
+  bv(i, j, k, 2) = q[2] * density_inv;
+  bv(i, j, k, 3) = q[3] * density_inv;
+  velocity = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3); //V^2
+
+  auto &sv = zone->sv;
+  if constexpr (mix_model != MixtureModel::FL) {
+    // For multiple species or RANS methods, there will be scalars to be computed
+    for (integer l = 0; l < param->n_scalar; ++l) {
+      sv(i, j, k, l) = q[5 + l] * density_inv;
+    }
+  } else {
+    // Flamelet model
+    for (integer l = 0; l < param->n_scalar_transported; ++l) {
+      sv(i, j, k, l + param->n_spec) = q[5 + l] * density_inv;
+    }
+    real yk_ave[MAX_SPEC_NUMBER];
+    memset(yk_ave, 0, sizeof(real) * param->n_spec);
+    compute_massFraction_from_MixtureFraction(zone, i, j, k, param, yk_ave);
+    if (param->n_fl_step > 10000) {
+      for (integer l = 0; l < param->n_spec; ++l) {
+        sv(i, j, k, l) = yk_ave[l];
+      }
+    } else {
+      for (integer l = 0; l < param->n_spec; ++l) {
+        real yk_mix = param->yk_lib(l, 0, 0, 0) +
+                      sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
+        sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
+      }
+    }
+  }
+  if constexpr (mix_model != MixtureModel::Air) {
+    compute_temperature(i, j, k, param, zone, q);
   } else {
     // Air
     bv(i, j, k, 4) = (gamma_air - 1) * (cv(i, j, k, 4) - 0.5 * bv(i, j, k, 0) * velocity);
