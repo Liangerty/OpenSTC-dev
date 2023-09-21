@@ -91,28 +91,6 @@ __global__ void apply_symmetry(DZone *zone, integer i_face, DParameter *param) {
     sv(i, j, k, l) = sv(inner_idx[0], inner_idx[1], inner_idx[2], l);
   }
 
-  // Assign values for conservative variables
-  auto &cv = zone->cv;
-  cv(i, j, k, 0) = bv(i, j, k, 0);
-  cv(i, j, k, 1) = bv(i, j, k, 0) * bv(i, j, k, 1);
-  cv(i, j, k, 2) = bv(i, j, k, 0) * bv(i, j, k, 2);
-  cv(i, j, k, 3) = bv(i, j, k, 0) * bv(i, j, k, 3);
-  // Scalars gradient are assumed to be 0, thus the difference in total energy is only caused by kinetic energy.
-  cv(i, j, k, 4) = cv(inner_idx[0], inner_idx[1], inner_idx[2], 4) -
-                   0.5 * bv(inner_idx[0], inner_idx[1], inner_idx[2], 0) * (u1 * u1 + v1 * v1 + w1 * w1) +
-                   0.5 * bv(i, j, k, 0) * (u_t * u_t + v_t * v_t + w_t * w_t);
-  if constexpr (mix_model == MixtureModel::FL) {
-    // Flamelet model
-    const integer n_spec{param->n_spec};
-    for (integer l = 0; l < param->n_scalar_transported; ++l) {
-      cv(i, j, k, 5 + l) = bv(i, j, k, 0) * sv(i, j, k, n_spec + l);
-    }
-  } else {
-    for (integer l = 0; l < param->n_scalar; ++l) {
-      cv(i, j, k, 5 + l) = bv(i, j, k, 0) * sv(i, j, k, l);
-    }
-  }
-
   // For ghost grids
   for (integer g = 1; g <= zone->ngg; ++g) {
     const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -192,7 +170,6 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   const auto *i_sv = inflow->sv;
 
   // Specify the boundary value as given.
-  auto &cv = zone->cv;
   bv(i, j, k, 0) = density;
   bv(i, j, k, 1) = u;
   bv(i, j, k, 2) = v;
@@ -202,25 +179,16 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   if constexpr (mix_model != MixtureModel::FL) {
     for (int l = 0; l < n_scalar; ++l) {
       sv(i, j, k, l) = i_sv[l];
-      cv(i, j, k, 5 + l) = density * i_sv[l];
     }
   } else {
     for (int l = 0; l < n_scalar; ++l) {
       sv(i, j, k, l) = i_sv[l];
     }
-    const integer n_spec{param->n_spec};
-    for (integer l = 0; l < param->n_scalar_transported; ++l) {
-      cv(i, j, k, 5 + l) = density * inflow->sv[n_spec + l];
-    }
   }
   if constexpr (turb_method == TurbMethod::RANS) {
     zone->mut(i, j, k) = inflow->mut;
   }
-  cv(i, j, k, 0) = density;
-  cv(i, j, k, 1) = density * u;
-  cv(i, j, k, 2) = density * v;
-  cv(i, j, k, 3) = density * w;
-  compute_total_energy<mix_model>(i, j, k, zone, param);
+  zone->vel(i, j, k) = inflow->velocity;
 
   for (integer g = 1; g <= ngg; g++) {
     const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -292,7 +260,6 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     const auto *i_sv = farfield->sv;
 
     // Specify the boundary value as given.
-    auto &cv = zone->cv;
     bv(i, j, k, 0) = density;
     bv(i, j, k, 1) = u;
     bv(i, j, k, 2) = v;
@@ -302,24 +269,16 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     if constexpr (mix_model != MixtureModel::FL) {
       for (int l = 0; l < n_scalar; ++l) {
         sv(i, j, k, l) = i_sv[l];
-        cv(i, j, k, 5 + l) = density * i_sv[l];
       }
     } else {
       for (int l = 0; l < n_scalar; ++l) {
         sv(i, j, k, l) = i_sv[l];
       }
-      for (integer l = 0; l < param->n_scalar_transported; ++l) {
-        cv(i, j, k, 5 + l) = density * i_sv[n_spec + l];
-      }
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = farfield->mut;
     }
-    cv(i, j, k, 0) = density;
-    cv(i, j, k, 1) = density * u;
-    cv(i, j, k, 2) = density * v;
-    cv(i, j, k, 3) = density * w;
-    compute_total_energy<mix_model>(i, j, k, zone, param);
+    zone->vel(i, j, k) = std::sqrt(u * u + v * v + w * w);
 
 
     for (integer g = 1; g <= ngg; g++) {
@@ -430,7 +389,6 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     }
 
     // Specify the boundary value as given.
-    auto &cv = zone->cv;
     bv(i, j, k, 0) = density;
     bv(i, j, k, 1) = u;
     bv(i, j, k, 2) = v;
@@ -440,24 +398,16 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     if constexpr (mix_model != MixtureModel::FL) {
       for (int l = 0; l < n_scalar; ++l) {
         sv(i, j, k, l) = sv_b[l];
-        cv(i, j, k, 5 + l) = density * sv_b[l];
       }
     } else {
       for (int l = 0; l < n_scalar; ++l) {
         sv(i, j, k, l) = sv_b[l];
       }
-      for (integer l = 0; l < param->n_scalar_transported; ++l) {
-        cv(i, j, k, 5 + l) = density * sv_b[n_spec + l];
-      }
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = mut;
     }
-    cv(i, j, k, 0) = density;
-    cv(i, j, k, 1) = density * u;
-    cv(i, j, k, 2) = density * v;
-    cv(i, j, k, 3) = density * w;
-    compute_total_energy<mix_model>(i, j, k, zone, param);
+    zone->vel(i, j, k) = std::sqrt(u * u + v * v + w * w);
 
     for (integer g = 1; g <= ngg; g++) {
       const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -491,7 +441,6 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
   if (i > range_end[0] || j > range_end[1] || k > range_end[2]) return;
 
   auto &bv = zone->bv;
-  auto &cv = zone->cv;
   auto &sv = zone->sv;
   const integer n_spec = param->n_spec;
 
@@ -522,20 +471,10 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
   bv(i, j, k, 3) = 0;
   bv(i, j, k, 4) = p;
   bv(i, j, k, 5) = t_wall;
-  cv(i, j, k, 0) = rho_wall;
-  cv(i, j, k, 1) = 0;
-  cv(i, j, k, 2) = 0;
-  cv(i, j, k, 3) = 0;
-  if constexpr (mix_model != MixtureModel::FL) {
-    for (integer l = 0; l < n_spec; ++l) {
-      cv(i, j, k, l + 5) = sv(i, j, k, l) * rho_wall;
-    }
-  }
-  compute_total_energy<mix_model>(i, j, k, zone, param);
+  zone->vel(i, j, k) = 0;
 
   // turbulent boundary condition
   if constexpr (turb_method == TurbMethod::RANS) {
-    const auto i_turb_cv{ param->i_turb_cv };
     if (param->rans_model == 2) {
       // SST
       real mu_wall{0};
@@ -546,23 +485,19 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
       }
       const real dy = zone->wall_distance(idx[0], idx[1], idx[2]);
       sv(i, j, k, n_spec) = 0;
-      cv(i, j, k, i_turb_cv) = 0;
       if (dy > 1e-25) {
         sv(i, j, k, n_spec + 1) = 60 * mu_wall / (rho_wall * SST::beta_1 * dy * dy);
       } else {
         sv(i, j, k, n_spec + 1) = sv(idx[0], idx[1], idx[2], n_spec + 1);
       }
-      cv(i, j, k, i_turb_cv + 1) = rho_wall * sv(i, j, k, n_spec + 1);
     }
   }
 
   if constexpr (mix_model == MixtureModel::FL) {
     // Flamelet model
-    const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
+    const integer i_fl{param->i_fl};
     sv(i, j, k, i_fl) = sv(idx[0], idx[1], idx[2], i_fl);
     sv(i, j, k, i_fl + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1);
-    cv(i, j, k, i_fl_cv) = sv(idx[0], idx[1], idx[2], i_fl) * rho_wall;
-    cv(i, j, k, i_fl_cv + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1) * rho_wall;
   }
 
   for (int g = 1; g <= ngg; ++g) {

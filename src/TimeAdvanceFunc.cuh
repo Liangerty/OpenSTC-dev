@@ -164,35 +164,24 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
     }
 
     // Assign averaged values for the bad point
-    auto &cv = zone->cv;
     bv(i, j, k, 0) = updated_var[0];
     bv(i, j, k, 1) = updated_var[1];
     bv(i, j, k, 2) = updated_var[2];
     bv(i, j, k, 3) = updated_var[3];
     bv(i, j, k, 4) = updated_var[4];
-    cv(i, j, k, 0) = updated_var[0];
-    cv(i, j, k, 1) = updated_var[0] * updated_var[1];
-    cv(i, j, k, 2) = updated_var[0] * updated_var[2];
-    cv(i, j, k, 3) = updated_var[0] * updated_var[3];
-    cv(i, j, k, 4) = 0.5 * updated_var[0] * (updated_var[1] * updated_var[1] + updated_var[2] * updated_var[2] +
-                                             updated_var[3] * updated_var[3]);
+    zone->vel(i,j,k)=std::sqrt(updated_var[1]*updated_var[1]+updated_var[2]*updated_var[2]+updated_var[3]*updated_var[3]);
     if constexpr (mixture != MixtureModel::FL) {
       for (integer l = 0; l < param->n_scalar; ++l) {
         sv(i, j, k, l) = updated_var[5 + l];
-        cv(i, j, k, 5 + l) = updated_var[0] * updated_var[5 + l];
       }
     } else {
       // Flamelet model
       for (integer l = 0; l < param->n_scalar; ++l) {
         sv(i, j, k, l) = updated_var[5 + l];
       }
-      for (integer l = 0; l < param->n_scalar_transported; ++l) {
-        cv(i, j, k, 5 + l) = updated_var[0] * updated_var[5 + l + param->n_spec];
-      }
     }
     if constexpr (mixture == MixtureModel::Air) {
       bv(i, j, k, 5) = updated_var[4] * mw_air / (updated_var[0] * R_u);
-      cv(i, j, k, 4) += updated_var[4] / (gamma_air - 1);
     } else {
       real mw = 0;
       for (integer l = 0; l < n_spec; ++l) {
@@ -202,11 +191,6 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
       bv(i, j, k, 5) = updated_var[4] * mw / (updated_var[0] * R_u);
       real enthalpy[MAX_SPEC_NUMBER];
       compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
-      // Add species enthalpy together up to kinetic energy to get total enthalpy
-      for (auto l = 0; l < param->n_spec; l++) {
-        cv(i, j, k, 4) += enthalpy[l] * updated_var[0] * sv(i, j, k, l);
-      }
-      cv(i, j, k, 4) -= bv(i, j, k, 4);  // (\rho e =\rho h - p)
     }
   }
 
@@ -265,11 +249,8 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
         }
 
         // Assign averaged values for the bad point
-        auto &cv = zone->cv;
         sv(i, j, k, n_spec) = updated_var[0];
         sv(i, j, k, n_spec + 1) = updated_var[1];
-        cv(i, j, k, param->i_turb_cv) = cv(i, j, k, 0) * updated_var[0];
-        cv(i, j, k, param->i_turb_cv + 1) = cv(i, j, k, 0) * updated_var[1];
       }
     }
   }
@@ -328,11 +309,8 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
       }
 
       // Assign averaged values for the bad point
-      auto &cv = zone->cv;
       sv(i, j, k, i_fl) = updated_var[0];
       sv(i, j, k, i_fl + 1) = updated_var[1];
-      cv(i, j, k, param->i_fl_cv) = cv(i, j, k, 0) * updated_var[0];
-      cv(i, j, k, param->i_fl_cv + 1) = cv(i, j, k, 0) * updated_var[1];
     }
   }
 }

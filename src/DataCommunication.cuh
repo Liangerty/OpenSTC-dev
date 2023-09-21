@@ -19,7 +19,7 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
 template<MixtureModel mix_model, TurbMethod turb_method>
 void parallel_communication(const Mesh &mesh, std::vector<cfd::Field> &field, integer step, DParameter *param);
 
-__global__ void setup_data_to_be_sent(DZone *zone, integer i_face, real *data, const DParameter* param);
+__global__ void setup_data_to_be_sent(DZone *zone, integer i_face, real *data, const DParameter *param);
 
 template<MixtureModel mix_model, TurbMethod turb_method>
 __global__ void assign_data_received(DZone *zone, integer i_face, const real *data, DParameter *param);
@@ -89,7 +89,11 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
       zone->sv(idx[0], idx[1], idx[2], l) = ave;
       tar_zone->sv(idx_tar[0], idx_tar[1], idx_tar[2], l) = ave;
     }
-    compute_cv_from_bv_1_point<mix_model, turb_method>(zone, param, idx[0], idx[1], idx[2]);
+    const real vel{std::sqrt(zone->bv(idx[0], idx[1], idx[2], 1) * zone->bv(idx[0], idx[1], idx[2], 1) +
+                             zone->bv(idx[0], idx[1], idx[2], 2) * zone->bv(idx[0], idx[1], idx[2], 2) +
+                             zone->bv(idx[0], idx[1], idx[2], 3) * zone->bv(idx[0], idx[1], idx[2], 3))};
+    zone->vel(idx[0], idx[1], idx[2]) = vel;
+    tar_zone->vel(idx_tar[0], idx_tar[1], idx_tar[2]) = vel;
   } else {
     // Else, get the inner value for this block's ghost grid
 #pragma unroll
@@ -229,7 +233,9 @@ __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const rea
   for (integer l = 0; l < param->n_scalar; ++l) {
     sv(idx[0], idx[1], idx[2], l) = 0.5 * (sv(idx[0], idx[1], idx[2], l) + data[bias + 6 + l]);
   }
-  compute_cv_from_bv_1_point<mix_model, turb_method>(zone, param, idx[0], idx[1], idx[2]);
+  zone->vel(idx[0], idx[1], idx[2])=std::sqrt(bv(idx[0], idx[1], idx[2], 1) * bv(idx[0], idx[1], idx[2], 1) +
+                           bv(idx[0], idx[1], idx[2], 2) * bv(idx[0], idx[1], idx[2], 2) +
+                           bv(idx[0], idx[1], idx[2], 3) * bv(idx[0], idx[1], idx[2], 3));
 
   for (integer ig = 1; ig <= ngg; ++ig) {
     idx[f.face] += f.direction;
@@ -241,7 +247,6 @@ __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const rea
     for (integer l = 0; l < param->n_scalar; ++l) {
       sv(idx[0], idx[1], idx[2], l) = data[bias + 6 + l];
     }
-    compute_cv_from_bv_1_point<mix_model, turb_method>(zone, param, idx[0], idx[1], idx[2]);
   }
 }
 
