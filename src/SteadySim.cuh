@@ -83,7 +83,6 @@ void steady_simulation(Driver<mix_model, turb_method> &driver) {
       implicit_treatment<mix_model, turb_method>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr);
 
       // update conservative and basic variables
-//      update_cv_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
       update_q_and_bv<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
 
       // limit unphysical values computed by the program
