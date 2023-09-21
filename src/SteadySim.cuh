@@ -96,7 +96,7 @@ void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
       driver.bound_cond.template apply_boundary_conditions<mix_model, turb>(mesh[b], field[b], param);
     }
     // Third, transfer data between and within processes
-    data_communication<mix_model, turb_method>(mesh, field, parameter, step, param);
+    data_communication(mesh, field, parameter, step, param);
 
     if (mesh.dimension == 2) {
       for (auto b = 0; b < n_block; ++b) {
@@ -110,7 +110,7 @@ void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
     for (auto b = 0; b < n_block; ++b) {
       integer mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
       dim3 BPG{(mx + 1) / tpb.x + 1, (my + 1) / tpb.y + 1, (mz + 1) / tpb.z + 1};
-      update_physical_properties<mix_model, turb_method><<<BPG, tpb>>>(field[b].d_ptr, param);
+      update_physical_properties<mix_model><<<BPG, tpb>>>(field[b].d_ptr, param);
     }
 
     // Finally, test if the simulation reaches convergence state

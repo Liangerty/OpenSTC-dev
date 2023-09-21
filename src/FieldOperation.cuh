@@ -77,18 +77,7 @@ compute_temperature_and_pressure(int i, int j, int k, const DParameter *param, D
 //
 //  compute_total_energy<mix_model>(i, j, k, zone, param);
 //}
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
-__global__ void compute_velocity(DZone *zone, DParameter *param) {
-  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my}, mz{zone->mz};
-  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
-  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - ngg;
-  integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - ngg;
-  if (i >= mx + ngg || j >= my + ngg || k >= mz + ngg) return;
-
-  const auto &bv = zone->bv;
-
-  zone->vel(i, j, k) = std::sqrt(bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3));
-}
+__global__ void compute_velocity(DZone *zone);
 
 //template<MixtureModel mix_model, TurbulenceMethod turb_method>
 //__device__ void compute_cv_from_bv_1_point(DZone *zone, DParameter *param, integer i, integer j, integer k) {
@@ -119,7 +108,7 @@ __global__ void compute_velocity(DZone *zone, DParameter *param) {
 //  compute_total_energy<mix_model>(i, j, k, zone, param);
 //}
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model>
 __global__ void update_physical_properties(DZone *zone, DParameter *param) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
   integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;

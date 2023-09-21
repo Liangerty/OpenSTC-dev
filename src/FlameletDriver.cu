@@ -45,11 +45,9 @@ void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
   const auto ng_1 = 2 * mesh[0].ngg - 1;
 
   // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
-  if constexpr (turb_method == TurbulenceMethod::RANS) {
-    if (parameter.get_int("RANS_model") == 2) {
+  if constexpr (TurbMethod<turb>::needWallDistance == true) {
       // SST method
       acquire_wall_distance<MixtureModel::FL,TurbulenceMethod::RANS>(*this);
-    }
   }
 
   if (mesh.dimension == 2) {
@@ -72,7 +70,7 @@ void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
   for (auto i = 0; i < mesh.n_block; ++i) {
     integer mx{mesh[i].mx}, my{mesh[i].my}, mz{mesh[i].mz};
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-    compute_velocity<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
+    compute_velocity<<<bpg, tpb>>>(field[i].d_ptr);
 //    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
     if constexpr (TurbMethod<turb>::hasMut==true){
       initialize_mut<MixtureModel::FL, turb><<<bpg, tpb >>>(field[i].d_ptr, param);
@@ -80,7 +78,7 @@ void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
   }
   cudaDeviceSynchronize();
   // Third, communicate values between processes
-  data_communication<MixtureModel::FL, turb_method>(mesh, field, parameter, 0, param);
+  data_communication(mesh, field, parameter, 0, param);
 
   if (myid == 0) {
     printf("Finish data transfer.\n");
@@ -90,7 +88,7 @@ void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
   for (auto b = 0; b < mesh.n_block; ++b) {
     integer mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-    update_physical_properties<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[b].d_ptr, param);
+    update_physical_properties<MixtureModel::FL><<<bpg, tpb>>>(field[b].d_ptr, param);
   }
   cudaDeviceSynchronize();
   if (myid == 0) {
