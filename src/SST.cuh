@@ -2,11 +2,17 @@
 
 #include "Define.h"
 #include "DParameter.cuh"
+#include "TurbMethod.hpp"
 
 namespace cfd {
 struct DZone;
 
 namespace SST {
+
+struct SST{
+
+};
+
 // Model constants
 static constexpr double beta_star = 0.09;
 static constexpr double sqrt_beta_star = 0.3;
@@ -64,4 +70,10 @@ __device__ void implicit_treat_for_dq0(DZone *zone, real diag, integer i, intege
 
 __device__ void implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total, const DParameter *param);
 }
+template<>
+struct TurbMethod<SST::SST>{
+  static constexpr bool isLaminar = false;
+  static constexpr bool hasMut = true;
+};
+
 }

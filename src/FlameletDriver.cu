@@ -6,8 +6,8 @@
 #include "SteadySim.cuh"
 
 namespace cfd{
-template<TurbulenceMethod turb_method>
-Driver<MixtureModel::FL, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
+template<TurbulenceMethod turb_method, class turb>
+Driver<MixtureModel::FL, turb_method, turb>::Driver(Parameter &parameter, Mesh &mesh_):
     myid(parameter.get_int("myid")), time(), mesh(mesh_), parameter(parameter),
     spec(parameter), flameletLib(parameter) {
   // Allocate the memory for every block
@@ -36,8 +36,8 @@ Driver<MixtureModel::FL, turb_method>::Driver(Parameter &parameter, Mesh &mesh_)
   write_reference_state(parameter);
 }
 
-template<TurbulenceMethod turb_method>
-void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
+template<TurbulenceMethod turb_method, class turb>
+void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
     tpb = {16, 16, 1};
@@ -118,6 +118,6 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
 //}
 
 // Explicitly instantiate the template, which means the flamelet model can only be used with RANS and LES.
-template struct Driver<MixtureModel::FL,TurbulenceMethod::RANS>;
+template struct Driver<MixtureModel::FL,TurbulenceMethod::RANS,SST::SST>;
 //template<> struct Driver<MixtureModel::FL,TurbulenceMethod::LES>;
 }

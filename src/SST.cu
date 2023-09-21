@@ -52,8 +52,8 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
     f2 = std::tanh(arg2 * arg2);
   }
   real mut{0};
-  if (const real denominator = max(SST::a_1 * omega, vorticity * f2); denominator > 1e-25) {
-    mut = SST::a_1 * rhoK / denominator;
+  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+    mut = a_1 * rhoK / denominator;
   }
   zone->mut(i, j, k) = mut;
 }
@@ -140,19 +140,19 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
     f2 = std::tanh(arg2 * arg2);
 
     const real CDkomega{max(1e-20, inter_var)};
-    const real param3{4 * density * SST::sigma_omega2 * tke / (CDkomega * d2)};
+    const real param3{4 * density * sigma_omega2 * tke / (CDkomega * d2)};
 
     const real arg1{min(max(param1, param2), param3)};
     f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
   }
   real mut{0};
-  if (const real denominator = max(SST::a_1 * omega, vorticity * f2); denominator > 1e-25) {
-    mut = SST::a_1 * rhoK / denominator;
+  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+    mut = a_1 * rhoK / denominator;
   }
   zone->mut(i, j, k) = mut;
 
-  real beta = SST::beta_2 + SST::delta_beta * f1;
-  real betaStar{SST::beta_star};
+  real beta = beta_2 + delta_beta * f1;
+  real betaStar{beta_star};
   if (auto correction = param->compressibility_correction;correction) {
     real specific_heat_ratio{gamma_air};
     if (n_spec > 0) {
@@ -166,7 +166,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
         beta_iStarMulXiStarMulFMt = Wilcox_compressibility_correction(Mt);
         break;
       case 2: // Sarkar
-        beta_iStarMulXiStarMulFMt = SST::beta_star * Mt * Mt;
+        beta_iStarMulXiStarMulFMt = beta_star * Mt * Mt;
         break;
       case 3: // Zeman
       default:// Zeman
@@ -193,7 +193,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
     zone->dq(i, j, k, i_turb_cv) += jac * (prod_k - diss_k);
 
     // omega source term
-    const real gamma = SST::gamma2 + SST::delta_gamma * f1;
+    const real gamma = gamma2 + delta_gamma * f1;
     const real prod_omega = gamma * density / mut * prod_k + (1 - f1) * inter_var;
     const real diss_omega = beta * density * omega * omega;
     zone->dq(i, j, k, i_turb_cv + 1) += jac * (prod_omega - diss_omega);
@@ -251,7 +251,7 @@ __device__ real Wilcox_compressibility_correction(real Mt) {
   constexpr real Mt0{0.25};
   real betaMultiXiMultiFMt{0};
   if (const real DMt = Mt - Mt0;DMt > 0) {
-    betaMultiXiMultiFMt = SST::beta_star * 2 * (Mt * Mt - Mt0 * Mt0);
+    betaMultiXiMultiFMt = beta_star * 2 * (Mt * Mt - Mt0 * Mt0);
   }
   return betaMultiXiMultiFMt;
 }
@@ -262,7 +262,7 @@ __device__ real Zeman_compressibility_correction(real Mt, real gammaP1) {
   if (const real DMt = Mt - Mt0;DMt > 0) {
     constexpr real Lambda2{0.66 * 0.66}; // For boundary layer flow, Lambda=0.66; For free shear flow, Lambda=0.6
     real F_Mt = 1 - exp(-0.5 * gammaP1 * DMt * DMt / Lambda2);
-    betaMultiXiMultiFMt = SST::beta_star * 0.75 * F_Mt;
+    betaMultiXiMultiFMt = beta_star * 0.75 * F_Mt;
   }
   return betaMultiXiMultiFMt;
 }

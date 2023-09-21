@@ -4,6 +4,7 @@
 #include "Mesh.h"
 #include "Driver.cuh"
 #include "Simulate.cuh"
+#include "SST.cuh"
 
 int main(int argc, char *argv[]) {
   cfd::MpiParallel mpi_parallel(&argc, &argv);
@@ -26,18 +27,18 @@ int main(int argc, char *argv[]) {
       // RANS
       if (reaction == 1) {
         // Finite rate chemistry
-        cfd::Driver<MixtureModel::FR, TurbulenceMethod::RANS> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::FR, TurbulenceMethod::RANS, cfd::SST::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
 //        driver.simulate();
       } else if (reaction == 2) {
         // Flamelet model
-        cfd::Driver<MixtureModel::FL, TurbulenceMethod::RANS> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::FL, TurbulenceMethod::RANS, cfd::SST::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       } else {
         // Pure mixing among species
-        cfd::Driver<MixtureModel::Mixture, TurbulenceMethod::RANS> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::Mixture, TurbulenceMethod::RANS, cfd::SST::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       }
@@ -45,12 +46,12 @@ int main(int argc, char *argv[]) {
       // Laminar
       if (reaction == 1) {
         // Finite rate chemistry
-        cfd::Driver<MixtureModel::FR, TurbulenceMethod::Laminar> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::FR, TurbulenceMethod::Laminar, cfd::Laminar> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       } else {
         // Pure mixing among species
-        cfd::Driver<MixtureModel::Mixture, TurbulenceMethod::Laminar> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::Mixture, TurbulenceMethod::Laminar, cfd::Laminar> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       }
@@ -59,12 +60,12 @@ int main(int argc, char *argv[]) {
     // Air simulation
     if (turbulent_method == 1) {
       // RANS and air
-      cfd::Driver<MixtureModel::Air, TurbulenceMethod::RANS> driver(parameter, mesh);
+      cfd::Driver<MixtureModel::Air, TurbulenceMethod::RANS, cfd::SST::SST> driver(parameter, mesh);
       driver.initialize_computation();
       simulate(driver);
     } else {
       // Laminar and air
-      cfd::Driver<MixtureModel::Air, TurbulenceMethod::Laminar> driver(parameter, mesh);
+      cfd::Driver<MixtureModel::Air, TurbulenceMethod::Laminar, cfd::Laminar> driver(parameter, mesh);
       driver.initialize_computation();
       simulate(driver);
     }

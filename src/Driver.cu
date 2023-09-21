@@ -7,8 +7,8 @@
 
 namespace cfd {
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
-Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
+template<MixtureModel mix_model, TurbulenceMethod turb_method, class turb>
+Driver<mix_model, turb_method, turb>::Driver(Parameter &parameter, Mesh &mesh_):
     myid(parameter.get_int("myid")), time(), mesh(mesh_), parameter(parameter),
     spec(parameter), reac(parameter, spec) {
   // Allocate the memory for every block
@@ -37,8 +37,8 @@ Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
   write_reference_state(parameter);
 }
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
-void Driver<mix_model, turb_method>::initialize_computation() {
+template<MixtureModel mix_model, TurbulenceMethod turb_method, class turb>
+void Driver<mix_model, turb_method, turb>::initialize_computation() {
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
     tpb = {16, 16, 1};
@@ -49,7 +49,7 @@ void Driver<mix_model, turb_method>::initialize_computation() {
   if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (parameter.get_int("RANS_model") == 2) {
       // SST method
-      acquire_wall_distance<mix_model, turb_method>(*this);
+      acquire_wall_distance<mix_model, turb_method, turb>(*this);
     }
   }
 
@@ -141,16 +141,16 @@ void write_reference_state(const Parameter &parameter) {
 
 // Instantiate all possible drivers
 template
-struct Driver<MixtureModel::Air, TurbulenceMethod::Laminar>;
+struct Driver<MixtureModel::Air, TurbulenceMethod::Laminar, Laminar>;
 template
-struct Driver<MixtureModel::Air, TurbulenceMethod::RANS>;
+struct Driver<MixtureModel::Air, TurbulenceMethod::RANS, SST::SST>;
 template
-struct Driver<MixtureModel::Mixture, TurbulenceMethod::Laminar>;
+struct Driver<MixtureModel::Mixture, TurbulenceMethod::Laminar, Laminar>;
 template
-struct Driver<MixtureModel::Mixture, TurbulenceMethod::RANS>;
+struct Driver<MixtureModel::Mixture, TurbulenceMethod::RANS, SST::SST>;
 template
-struct Driver<MixtureModel::FR, TurbulenceMethod::Laminar>;
+struct Driver<MixtureModel::FR, TurbulenceMethod::Laminar, Laminar>;
 template
-struct Driver<MixtureModel::FR, TurbulenceMethod::RANS>;
+struct Driver<MixtureModel::FR, TurbulenceMethod::RANS, SST::SST>;
 
 } // cfd
