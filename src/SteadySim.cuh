@@ -33,7 +33,7 @@ void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
   const integer output_screen = parameter.get_int("output_screen");
   const integer output_file = parameter.get_int("output_file");
 
-  IOManager<mix_model, turb_method> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
+  IOManager<mix_model, turb> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
 
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
@@ -73,7 +73,7 @@ void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
 
       // Second, for each block, compute the residual dq
       // First, compute the source term, because properties such as mut are updated here.
-      compute_source<mix_model, turb_method><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+      compute_source<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
       compute_inviscid_flux<mix_model, turb_method>(mesh[b], field[b].d_ptr, param, n_var, parameter);
       compute_viscous_flux<mix_model, turb_method>(mesh[b], field[b].d_ptr, param, n_var);
 

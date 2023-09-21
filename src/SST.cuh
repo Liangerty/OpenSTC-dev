@@ -13,6 +13,7 @@ struct SST{
 
   __device__ static void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param);
 
+  __device__ static void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
 };
 
 // Model constants
