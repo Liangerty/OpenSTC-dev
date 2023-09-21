@@ -58,7 +58,7 @@ struct DZone {
 
 #endif
 
-//template<MixtureModel mix_model, TurbMethod turb_method>
+//template<MixtureModel mix_model, TurbulenceMethod turb_method>
 struct Field {
   Field(Parameter &parameter, const Block &block_in);
 

@@ -12,7 +12,7 @@
 #include "PostProcess.h"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void steady_simulation(Driver<mix_model, turb_method> &driver) {
   auto &parameter{driver.parameter};
   auto &mesh{driver.mesh};

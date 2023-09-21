@@ -10,7 +10,7 @@
 
 namespace cfd {
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 struct Driver {
   Driver(Parameter &parameter, Mesh &mesh_);
 
@@ -32,7 +32,7 @@ public:
   std::array<real, 4> res_scale{1, 1, 1, 1};
 };
 
-template<TurbMethod turb_method>
+template<TurbulenceMethod turb_method>
 struct Driver<MixtureModel::FL, turb_method>{
   Driver(Parameter &parameter, Mesh &mesh_);
 

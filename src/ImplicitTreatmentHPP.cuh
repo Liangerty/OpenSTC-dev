@@ -7,7 +7,7 @@
 //#include "FiniteRateChem.cuh"
 
 namespace cfd {
-template<MixtureModel mixture_model, TurbMethod turb_method>
+template<MixtureModel mixture_model, TurbulenceMethod turb_method>
 void implicit_treatment(const Block &block, const DParameter *param, DZone *d_ptr, const Parameter &parameter,
                         DZone *h_ptr) {
   switch (parameter.get_int("implicit_method")) {
@@ -33,7 +33,7 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
           }
         }
       }
-      if constexpr (turb_method == TurbMethod::RANS) {
+      if constexpr (turb_method == TurbulenceMethod::RANS) {
         if (parameter.get_int("turb_implicit") == 1) {
           const integer extent[3]{block.mx, block.my, block.mz};
           const integer dim{extent[2] == 1 ? 2 : 3};

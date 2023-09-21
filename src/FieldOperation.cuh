@@ -40,7 +40,7 @@ compute_temperature_and_pressure(int i, int j, int k, const DParameter *param, D
 //  vel(i, j, k) = sqrt(vel(i, j, k));
 //}
 
-//template<MixtureModel mix_model, TurbMethod turb_method>
+//template<MixtureModel mix_model, TurbulenceMethod turb_method>
 //__global__ void compute_cv_from_bv(DZone *zone, DParameter *param) {
 //  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my}, mz{zone->mz};
 //  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
@@ -77,7 +77,7 @@ compute_temperature_and_pressure(int i, int j, int k, const DParameter *param, D
 //
 //  compute_total_energy<mix_model>(i, j, k, zone, param);
 //}
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void compute_velocity(DZone *zone, DParameter *param) {
   const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my}, mz{zone->mz};
   integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
@@ -90,7 +90,7 @@ __global__ void compute_velocity(DZone *zone, DParameter *param) {
   zone->vel(i, j, k) = std::sqrt(bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3));
 }
 
-//template<MixtureModel mix_model, TurbMethod turb_method>
+//template<MixtureModel mix_model, TurbulenceMethod turb_method>
 //__device__ void compute_cv_from_bv_1_point(DZone *zone, DParameter *param, integer i, integer j, integer k) {
 //  const auto &bv = zone->bv;
 //  auto &cv = zone->cv;
@@ -119,7 +119,7 @@ __global__ void compute_velocity(DZone *zone, DParameter *param) {
 //  compute_total_energy<mix_model>(i, j, k, zone, param);
 //}
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void update_physical_properties(DZone *zone, DParameter *param) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
   integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
@@ -206,7 +206,7 @@ __device__ real compute_total_energy_1_point(integer i, integer j, integer k, cf
   return total_energy;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void update_q_and_bv(cfd::DZone *zone, DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const auto i = (integer) (blockDim.x * blockIdx.x + threadIdx.x);

@@ -9,12 +9,12 @@
 #include "gxl_lib/MyString.h"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void initialize_basic_variables(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species);
 
 void initialize_from_start(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void read_flowfield(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species);
 
 /**
@@ -22,7 +22,7 @@ void read_flowfield(Parameter &parameter, const Mesh &mesh, std::vector<Field> &
  * @param var_name the array which contains all variables from the flowfield files
  * @return an array of orders. 0~5 means density, u, v, w, p, T; 6~5+ns means the species order, 6+ns~... means other variables such as mut...
  */
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 std::vector<integer>
 identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &var_name, Species &species,
                          std::array<integer, 2> &old_data_info);
@@ -37,7 +37,7 @@ void initialize_mixture_fraction_from_species(cfd::Parameter &parameter, const c
                                               std::vector<Field> &field, Species &species);
 
 // Implementations
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void initialize_basic_variables(Parameter &parameter, const Mesh &mesh, std::vector<Field> &field, Species &species) {
   const integer init_method = parameter.get_int("initial");
   // No matter which method is used to initialize the flowfield,
@@ -60,7 +60,7 @@ void initialize_basic_variables(Parameter &parameter, const Mesh &mesh, std::vec
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vector<Field> &field, Species &species) {
   const std::filesystem::path out_dir("output/field");
   if (!exists(out_dir)) {
@@ -209,12 +209,12 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
       initialize_spec_from_inflow(parameter, mesh, field, species);
     }
   }
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (old_data_info[1] == 0) {
       initialize_turb_from_inflow(parameter, mesh, field, species);
     }
   }
-  if constexpr (mix_model == MixtureModel::FL && (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES)) {
+  if constexpr (mix_model == MixtureModel::FL && (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES)) {
     if (old_data_info[0] == 1) {
       // From species field to mixture fraction field
       initialize_mixture_fraction_from_species(parameter, mesh, field, species);
@@ -232,7 +232,7 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 std::vector<integer>
 identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &var_name, Species &species,
                          std::array<integer, 2> &old_data_info) {
@@ -276,7 +276,7 @@ identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &va
           old_data_info[0] = 2;
         }
       }
-      if constexpr (turb_method == TurbMethod::RANS) {
+      if constexpr (turb_method == TurbulenceMethod::RANS) {
         // We expect to find some RANS variables. If not found, old_data_info[1] will remain 0.
         if (n == "K" || n == "TKE") { // turbulent kinetic energy
           if (n_turb == 2) {

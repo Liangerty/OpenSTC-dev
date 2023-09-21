@@ -176,7 +176,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
       }
     }
   }
-//  if constexpr (turb_method == TurbMethod::RANS) {
+//  if constexpr (turb_method == TurbulenceMethod::RANS) {
 //    h_ptr->mut.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
 //    h_ptr->turb_therm_cond.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
 //    if (parameter.get_int("RANS_model") == 2) {

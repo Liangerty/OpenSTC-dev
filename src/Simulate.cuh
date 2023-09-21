@@ -5,7 +5,7 @@
 #include "SteadySim.cuh"
 
 namespace cfd{
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void simulate(Driver<mix_model, turb_method> &driver){
   const auto& parameter{driver.parameter};
   const auto steady{parameter.get_bool("steady")};

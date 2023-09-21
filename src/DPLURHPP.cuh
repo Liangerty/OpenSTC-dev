@@ -10,7 +10,7 @@
 namespace cfd {
 struct DZone;
 
-template<MixtureModel mixture_model, TurbMethod turb_method>
+template<MixtureModel mixture_model, TurbulenceMethod turb_method>
 __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -59,7 +59,7 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     // switch RANS model, and apply point implicit to treat the turbulent part
     if (param->turb_implicit == 1) {
       switch (param->rans_model) {
@@ -146,7 +146,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   }
 }
 
-template<MixtureModel mixture_model, TurbMethod turb_method>
+template<MixtureModel mixture_model, TurbulenceMethod turb_method>
 __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   // This can be split into 3 kernels, such that the shared memory can be used.
   // E.g., i=2 needs ii=1 and ii=3, while i=4 needs ii=3 and ii=5, thus the ii=3 is recomputed.
@@ -257,7 +257,7 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
     dqk(i, j, k, i_fl_cv + 1) = dq0(i, j, k, i_fl_cv + 1) + dt_local * dq_total[i_fl_cv + 1] / diag;
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     // switch RANS model, and apply point implicit to treat the turbulent part
     if (param->turb_implicit == 1) {
       switch (param->rans_model) {
@@ -283,7 +283,7 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   }
 }
 
-template<MixtureModel mixture_model, TurbMethod turb_method>
+template<MixtureModel mixture_model, TurbulenceMethod turb_method>
 void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
   const integer dim{extent[2] == 1 ? 2 : 3};

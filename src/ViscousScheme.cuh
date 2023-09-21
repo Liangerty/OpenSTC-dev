@@ -10,16 +10,16 @@ namespace cfd {
 
 struct DParameter;
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_gv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_hv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -67,7 +67,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i + 1, j, k));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i + 1, j, k));
   }
   const real viscosity = mul + mut;
@@ -79,7 +79,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   const real tau_xy = viscosity * (u_y + v_x);
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
       const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
@@ -106,7 +106,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i + 1, j, k));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i + 1, j, k));
   }
 
@@ -121,7 +121,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (turb_method == TurbulenceMethod::RANS) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -195,7 +195,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     const integer rans_model{param->rans_model};
 
     switch (rans_model) {
@@ -276,7 +276,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     const real rhoD{mul / param->Sc + mut / param->Sct};
     fv[i_fl_cv] = rhoD * (xi_x_div_jac * mixFrac_x + xi_y_div_jac * mixFrac_y + xi_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (turb_method != TurbulenceMethod::LES) {
       // For RANS / DES, we also solve the mixture fraction variance eqn.
       const real mixFracVar_xi = sv(i + 1, j, k, i_fl + 1) - pv(i, j, k, i_fl + 1);
       const real mixFracVar_eta = 0.25 * (sv(i, j + 1, k, i_fl + 1) - sv(i, j - 1, k, i_fl + 1) +
@@ -294,7 +294,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, cfd::DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -342,7 +342,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i, j + 1, k));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i, j + 1, k));
   }
   const real viscosity = mul + mut;
@@ -355,7 +355,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
       const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
@@ -382,7 +382,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i, j + 1, k));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i, j + 1, k));
   }
 
@@ -397,7 +397,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (turb_method == TurbulenceMethod::RANS) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -471,7 +471,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     const integer rans_model{param->rans_model};
 
     switch (rans_model) {
@@ -552,7 +552,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     const real rhoD{mul / param->Sc + mut / param->Sct};
     gv[i_fl_cv] = rhoD * (eta_x_div_jac * mixFrac_x + eta_y_div_jac * mixFrac_y + eta_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (turb_method != TurbulenceMethod::LES) {
       // For LES, we do not need to compute the variance of mixture fraction.
       const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
                                          sv(i + 1, j + 1, k, i_fl + 1) - sv(i - 1, j + 1, k, i_fl + 1));
@@ -570,7 +570,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, cfd::DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -614,7 +614,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i, j, k + 1));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i, j, k + 1));
   }
   const real viscosity = mul + mut;
@@ -627,7 +627,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (param->rans_model == 2) {
       // SST
       const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
@@ -654,7 +654,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i, j, k + 1));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i, j, k + 1));
   }
 
@@ -669,7 +669,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (turb_method == TurbulenceMethod::RANS) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -743,7 +743,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     const integer rans_model{param->rans_model};
 
     switch (rans_model) {
@@ -823,7 +823,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     const real rhoD{mul / param->Sc + mut / param->Sct};
     hv[i_fl_cv] = rhoD * (zeta_x_div_jac * mixFrac_x + zeta_y_div_jac * mixFrac_y + zeta_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (turb_method != TurbulenceMethod::LES) {
       // For LES, we do not need to compute the variance of mixture fraction.
       const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
                                          sv(i + 1, j, k + 1, i_fl + 1) - sv(i - 1, j, k + 1, i_fl + 1));

@@ -9,22 +9,22 @@
 #include "FieldOperation.cuh"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void data_communication(const Mesh &mesh, std::vector<cfd::Field> &field, const Parameter &parameter, integer step,
                         DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void parallel_communication(const Mesh &mesh, std::vector<cfd::Field> &field, integer step, DParameter *param);
 
 __global__ void setup_data_to_be_sent(DZone *zone, integer i_face, real *data, const DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void assign_data_received(DZone *zone, integer i_face, const real *data, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void data_communication(const Mesh &mesh, std::vector<Field> &field, const Parameter &parameter, integer step,
                         DParameter *param) {
   // -1 - inner faces
@@ -55,7 +55,7 @@ void data_communication(const Mesh &mesh, std::vector<Field> &field, const Param
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face, DParameter *param) {
   const auto &f = zone->innerface[i_face];
   uint n[3];
@@ -106,7 +106,7 @@ __global__ void inner_communication(DZone *zone, DZone *tar_zone, integer i_face
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void parallel_communication(const cfd::Mesh &mesh, std::vector<cfd::Field> &field, integer step, DParameter *param) {
   const int n_block{mesh.n_block};
   const integer n_trans{param->n_scalar + 6}; // All primitive variables are to be transferred
@@ -207,7 +207,7 @@ void parallel_communication(const cfd::Mesh &mesh, std::vector<cfd::Field> &fiel
   delete[]r_request;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void assign_data_received(cfd::DZone *zone, integer i_face, const real *data, DParameter *param) {
   const auto &f = zone->parface[i_face];
   integer n[3];

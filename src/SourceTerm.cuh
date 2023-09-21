@@ -8,7 +8,7 @@
 #include "FiniteRateChem.cuh"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const auto i = (integer) (blockDim.x * blockIdx.x + threadIdx.x);
@@ -16,7 +16,7 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
   const auto k = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     switch (param->rans_model) {
       case 1://SA
         break;

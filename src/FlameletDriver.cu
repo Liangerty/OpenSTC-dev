@@ -6,7 +6,7 @@
 #include "SteadySim.cuh"
 
 namespace cfd{
-template<TurbMethod turb_method>
+template<TurbulenceMethod turb_method>
 Driver<MixtureModel::FL, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
     myid(parameter.get_int("myid")), time(), mesh(mesh_), parameter(parameter),
     spec(parameter), flameletLib(parameter) {
@@ -36,7 +36,7 @@ Driver<MixtureModel::FL, turb_method>::Driver(Parameter &parameter, Mesh &mesh_)
   write_reference_state(parameter);
 }
 
-template<TurbMethod turb_method>
+template<TurbulenceMethod turb_method>
 void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
@@ -45,10 +45,10 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
   const auto ng_1 = 2 * mesh[0].ngg - 1;
 
   // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (parameter.get_int("RANS_model") == 2) {
       // SST method
-      acquire_wall_distance<MixtureModel::FL,TurbMethod::RANS>(*this);
+      acquire_wall_distance<MixtureModel::FL,TurbulenceMethod::RANS>(*this);
     }
   }
 
@@ -74,7 +74,7 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
     compute_velocity<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
 //    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (turb_method == TurbulenceMethod::RANS) {
       // We need the wall distance here. And the mut are computed for bc
       initialize_mut<MixtureModel::FL><<<bpg, tpb >>>(field[i].d_ptr, param);
     }
@@ -99,7 +99,7 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
   }
 }
 //
-//template<TurbMethod turb_method>
+//template<TurbulenceMethod turb_method>
 //void Driver<MixtureModel::FL, turb_method>::simulate() {
 //  const auto steady{parameter.get_bool("steady")};
 //  if (steady) {
@@ -118,6 +118,6 @@ void Driver<MixtureModel::FL, turb_method>::initialize_computation() {
 //}
 
 // Explicitly instantiate the template, which means the flamelet model can only be used with RANS and LES.
-template struct Driver<MixtureModel::FL,TurbMethod::RANS>;
-//template<> struct Driver<MixtureModel::FL,TurbMethod::LES>;
+template struct Driver<MixtureModel::FL,TurbulenceMethod::RANS>;
+//template<> struct Driver<MixtureModel::FL,TurbulenceMethod::LES>;
 }

@@ -7,7 +7,7 @@
 #include "gxl_lib/Array.hpp"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>
+template<MixtureModel mix_model, TurbulenceMethod turb_method, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>
 struct BoundaryIO {
   const Parameter &parameter;
   const Mesh &mesh;
@@ -36,7 +36,7 @@ private:
   void write_header(const std::vector<Field> &_field);
 };
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
+template<MixtureModel mix_model, TurbulenceMethod turb_method, OutputTimeChoice output_time_choice>
 BoundaryIO<mix_model, turb_method, output_time_choice>::BoundaryIO(const Parameter &parameter_, const Mesh &mesh_,
                                                                    const Species &species_,
                                                                    std::vector<Field> &_field)
@@ -132,7 +132,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::BoundaryIO(const Paramet
   write_header(field);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, integer BoundaryType>
+template<MixtureModel mix_model, TurbulenceMethod turb_method, integer BoundaryType>
 int32_t
 acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parameter &parameter,
                                 const Species &species) {
@@ -154,7 +154,7 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
       }
     }
   }
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (integer rans_method = parameter.get_int("RANS_model"); rans_method == 1) {
       nv += 1; // SA variable?
     } else if (rans_method == 2) {
@@ -168,14 +168,14 @@ acquire_boundary_variable_names(std::vector<std::string> &var_name, const Parame
     var_name.emplace_back("MixtureFraction");
     var_name.emplace_back("MixtureFractionVariance");
   }
-  if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+  if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
     nv += 1; // mu_t
     var_name.emplace_back("mut");
   }
   return nv;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
+template<MixtureModel mix_model, TurbulenceMethod turb_method, OutputTimeChoice output_time_choice>
 void
 BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::vector<Field> &_field) {
   const std::filesystem::path out_dir("output/field");
@@ -454,7 +454,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::
         offset += 8;
       }
       // if turbulent, mut
-      if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+      if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
         min_val = v.ov(xs[l][f], ys[l][f], zs[l][f], 1);
         max_val = v.ov(xs[l][f], ys[l][f], zs[l][f], 1);
         for (int k = zs[l][f]; k <= ze[l][f]; ++k) {
@@ -504,7 +504,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::
         offset += mem_sz;
       }
       // if turbulent, mut
-      if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+      if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
         auto var = v.ov[1];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
@@ -520,7 +520,7 @@ BoundaryIO<mix_model, turb_method, output_time_choice>::write_header(const std::
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
+template<MixtureModel mix_model, TurbulenceMethod turb_method, OutputTimeChoice output_time_choice>
 void BoundaryIO<mix_model, turb_method, output_time_choice>::print_boundary() {
   const std::filesystem::path out_dir("output/field");
   for (int l = 0; l < labels_to_output.size(); ++l) {
@@ -590,7 +590,7 @@ void BoundaryIO<mix_model, turb_method, output_time_choice>::print_boundary() {
         offset += 8;
       }
       // if turbulent, mut
-      if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+      if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
         min_val = v.ov(xs[l][f], ys[l][f], zs[l][f], 1);
         max_val = v.ov(xs[l][f], ys[l][f], zs[l][f], 1);
         for (int k = zs[l][f]; k <= ze[l][f]; ++k) {
@@ -635,7 +635,7 @@ void BoundaryIO<mix_model, turb_method, output_time_choice>::print_boundary() {
         offset += mem_sz;
       }
       // if turbulent, mut
-      if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+      if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
         auto var = v.ov[1];
         MPI_File_write_at(fp, offset, var, 1, ty, &status);
         offset += mem_sz;
