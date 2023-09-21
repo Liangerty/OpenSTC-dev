@@ -5,8 +5,8 @@
 #include <vector>
 
 namespace cfd{
-template<MixtureModel mix_model, TurbulenceMethod turb_method, class turb>
-void acquire_wall_distance(Driver<mix_model, turb_method, turb> &driver) {
+template<MixtureModel mix_model, class turb>
+void acquire_wall_distance(Driver<mix_model, turb> &driver) {
   auto& parameter{driver.parameter};
   auto &bound_cond{driver.bound_cond};
   auto&mesh{driver.mesh};

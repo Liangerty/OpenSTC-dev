@@ -12,8 +12,8 @@
 #include "PostProcess.h"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbulenceMethod turb_method, class turb>
-void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
+template<MixtureModel mix_model, class turb>
+void steady_simulation(Driver<mix_model, turb> &driver) {
   auto &parameter{driver.parameter};
   auto &mesh{driver.mesh};
   std::vector<cfd::Field> &field{driver.field};
