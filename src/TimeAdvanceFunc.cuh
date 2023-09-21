@@ -169,16 +169,10 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
     bv(i, j, k, 2) = updated_var[2];
     bv(i, j, k, 3) = updated_var[3];
     bv(i, j, k, 4) = updated_var[4];
-    zone->vel(i,j,k)=std::sqrt(updated_var[1]*updated_var[1]+updated_var[2]*updated_var[2]+updated_var[3]*updated_var[3]);
-    if constexpr (mixture != MixtureModel::FL) {
-      for (integer l = 0; l < param->n_scalar; ++l) {
-        sv(i, j, k, l) = updated_var[5 + l];
-      }
-    } else {
-      // Flamelet model
-      for (integer l = 0; l < param->n_scalar; ++l) {
-        sv(i, j, k, l) = updated_var[5 + l];
-      }
+    zone->vel(i, j, k) =
+        std::sqrt(updated_var[1] * updated_var[1] + updated_var[2] * updated_var[2] + updated_var[3] * updated_var[3]);
+    for (integer l = 0; l < param->n_scalar; ++l) {
+      sv(i, j, k, l) = updated_var[5 + l];
     }
     if constexpr (mixture == MixtureModel::Air) {
       bv(i, j, k, 5) = updated_var[4] * mw_air / (updated_var[0] * R_u);
@@ -189,8 +183,6 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
       }
       mw = 1 / mw;
       bv(i, j, k, 5) = updated_var[4] * mw / (updated_var[0] * R_u);
-      real enthalpy[MAX_SPEC_NUMBER];
-      compute_enthalpy(bv(i, j, k, 5), enthalpy, param);
     }
   }
 

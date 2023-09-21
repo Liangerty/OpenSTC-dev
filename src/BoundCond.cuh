@@ -176,14 +176,8 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
   bv(i, j, k, 3) = w;
   bv(i, j, k, 4) = inflow->pressure;
   bv(i, j, k, 5) = inflow->temperature;
-  if constexpr (mix_model != MixtureModel::FL) {
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = i_sv[l];
-    }
-  } else {
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = i_sv[l];
-    }
+  for (int l = 0; l < n_scalar; ++l) {
+    sv(i, j, k, l) = i_sv[l];
   }
   if constexpr (turb_method == TurbMethod::RANS) {
     zone->mut(i, j, k) = inflow->mut;
@@ -266,14 +260,8 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     bv(i, j, k, 3) = w;
     bv(i, j, k, 4) = farfield->pressure;
     bv(i, j, k, 5) = farfield->temperature;
-    if constexpr (mix_model != MixtureModel::FL) {
-      for (int l = 0; l < n_scalar; ++l) {
-        sv(i, j, k, l) = i_sv[l];
-      }
-    } else {
-      for (int l = 0; l < n_scalar; ++l) {
-        sv(i, j, k, l) = i_sv[l];
-      }
+    for (int l = 0; l < n_scalar; ++l) {
+      sv(i, j, k, l) = i_sv[l];
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = farfield->mut;
@@ -395,14 +383,8 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
     bv(i, j, k, 3) = w;
     bv(i, j, k, 4) = pressure;
     bv(i, j, k, 5) = temperature;
-    if constexpr (mix_model != MixtureModel::FL) {
-      for (int l = 0; l < n_scalar; ++l) {
-        sv(i, j, k, l) = sv_b[l];
-      }
-    } else {
-      for (int l = 0; l < n_scalar; ++l) {
-        sv(i, j, k, l) = sv_b[l];
-      }
+    for (int l = 0; l < n_scalar; ++l) {
+      sv(i, j, k, l) = sv_b[l];
     }
     if constexpr (turb_method == TurbMethod::RANS) {
       zone->mut(i, j, k) = mut;
