@@ -10,7 +10,7 @@
 namespace cfd {
 struct DZone;
 
-template<MixtureModel mixture_model, TurbulenceMethod turb_method>
+template<MixtureModel mixture_model, class turb_method>
 __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -58,28 +58,16 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
       dq(i, j, k, l) /= diag;
     }
   }
-
-  if constexpr (turb_method == TurbulenceMethod::RANS) {
-    // switch RANS model, and apply point implicit to treat the turbulent part
-    if (param->turb_implicit == 1) {
-      switch (param->rans_model) {
-        case 1:
-        case 2: //SST
-          SST::implicit_treat_for_dq0(zone, diag, i, j, k, param);
-          break;
-        default:
-          break;
-      }
-    } else {
-      switch (param->rans_model) {
-        case 1:
-        case 2: //SST
-          dq(i, j, k, param->i_turb_cv) /= diag;
-          dq(i, j, k, param->i_turb_cv + 1) /= diag;
-          break;
-        default:
-          break;
-      }
+  if (param->turb_implicit == 1) {
+    if constexpr (TurbMethod<turb_method>::hasImplicitTreat)
+      turb_method::implicit_treat_for_dq0(zone, diag, i, j, k, param);
+    else {
+      // This method does not have an implicit treatment, do something.
+    }
+  } else {
+    if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+      dq(i, j, k, param->i_turb_cv) /= diag;
+      dq(i, j, k, param->i_turb_cv + 1) /= diag;
     }
   }
 }
@@ -146,7 +134,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   }
 }
 
-template<MixtureModel mixture_model, TurbulenceMethod turb_method>
+template<MixtureModel mixture_model, class turb_method>
 __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   // This can be split into 3 kernels, such that the shared memory can be used.
   // E.g., i=2 needs ii=1 and ii=3, while i=4 needs ii=3 and ii=5, thus the ii=3 is recomputed.
@@ -256,34 +244,22 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
     dqk(i, j, k, i_fl_cv) = dq0(i, j, k, i_fl_cv) + dt_local * dq_total[i_fl_cv] / diag;
     dqk(i, j, k, i_fl_cv + 1) = dq0(i, j, k, i_fl_cv + 1) + dt_local * dq_total[i_fl_cv + 1] / diag;
   }
-
-  if constexpr (turb_method == TurbulenceMethod::RANS) {
-    // switch RANS model, and apply point implicit to treat the turbulent part
-    if (param->turb_implicit == 1) {
-      switch (param->rans_model) {
-        case 1:
-        case 2: //SST
-          SST::implicit_treat_for_dqk(zone, diag, i, j, k, dq_total, param);
-          break;
-        default:
-          break;
-      }
-    } else {
-      const auto i_turb_cv{param->i_turb_cv};
-      switch (param->rans_model) {
-        case 1:
-        case 2: //SST
-          dqk(i, j, k, i_turb_cv) = dq0(i, j, k, i_turb_cv) + dt_local * dq_total[i_turb_cv] / diag;
-          dqk(i, j, k, i_turb_cv + 1) = dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / diag;
-          break;
-        default:
-          break;
-      }
+  if (param->turb_implicit == 1){
+    if constexpr (TurbMethod<turb_method>::hasImplicitTreat){
+      turb_method::implicit_treat_for_dqk(zone, diag, i, j, k, dq_total, param);
+    }else{
+      // This method does not have an implicit treatment, do something.
+    }
+  }else{
+    const auto i_turb_cv{param->i_turb_cv};
+    if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+      dqk(i, j, k, i_turb_cv) = dq0(i, j, k, i_turb_cv) + dt_local * dq_total[i_turb_cv] / diag;
+      dqk(i, j, k, i_turb_cv + 1) = dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / diag;
     }
   }
 }
 
-template<MixtureModel mixture_model, TurbulenceMethod turb_method>
+template<MixtureModel mixture_model, class turb_method>
 void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
   const integer dim{extent[2] == 1 ? 2 : 3};

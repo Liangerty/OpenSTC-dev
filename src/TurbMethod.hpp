@@ -30,6 +30,8 @@ struct TurbMethod {
   static constexpr TurbMethodLabel label = TurbMethodLabel::Lam;
   // If we need to compute distance to wall in this method
   static constexpr bool needWallDistance = false;
+  // If this method has implicit treatment for the source term
+  static constexpr bool hasImplicitTreat = false;
 };
 
 struct Laminar {

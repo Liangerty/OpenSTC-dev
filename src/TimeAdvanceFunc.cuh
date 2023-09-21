@@ -5,11 +5,12 @@
 #include "Field.h"
 #include "Constants.h"
 #include "Thermo.cuh"
+#include "TurbMethod.hpp"
 
 namespace cfd {
 __global__ void store_last_step(DZone *zone);
 
-template<MixtureModel mixture, TurbulenceMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void local_time_step(cfd::DZone *zone, DParameter *param);
 
 __global__ void compute_square_of_dbv(DZone *zone);
@@ -18,7 +19,7 @@ template<MixtureModel mixture, TurbulenceMethod turb_method>
 __global__ void limit_flow(cfd::DZone *zone, cfd::DParameter *param, integer blk_id);
 }
 
-template<MixtureModel mixture, TurbulenceMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void cfd::local_time_step(cfd::DZone *zone, cfd::DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -57,7 +58,7 @@ __global__ void cfd::local_time_step(cfd::DZone *zone, cfd::DParameter *param) {
   }
   real coeff_1 = max(gamma, 4.0 / 3.0) / bv(i, j, k, 0);
   real coeff_2 = zone->mul(i, j, k) / param->Pr;
-  if constexpr (turb_method == TurbulenceMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     coeff_2 += zone->mut(i, j, k) / param->Prt;
   }
   real spectral_radius_viscous = grad_xi * grad_xi + grad_eta * grad_eta;

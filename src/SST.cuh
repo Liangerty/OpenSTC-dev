@@ -14,6 +14,10 @@ struct SST{
   __device__ static void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param);
 
   __device__ static void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param);
+
+  __device__ static void implicit_treat_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param);
+
+  __device__ static void implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total, const DParameter *param);
 };
 
 // Model constants
@@ -67,9 +71,6 @@ compute_hv_2nd_order(DZone *zone, real *hv, DParameter *param, integer i, intege
 
 __global__ void implicit_treat(DZone *zone, const DParameter *param);
 
-__device__ void implicit_treat_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param);
-
-__device__ void implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total, const DParameter *param);
 }
 template<>
 struct TurbMethod<SST::SST>{
@@ -78,6 +79,7 @@ struct TurbMethod<SST::SST>{
   static constexpr TurbulentSimulationMethod type = TurbulentSimulationMethod::RANS;
   static constexpr TurbMethodLabel label = TurbMethodLabel::SST;
   static constexpr bool needWallDistance = true;
+  static constexpr bool hasImplicitTreat = true;
 };
 
 }
