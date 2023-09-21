@@ -34,7 +34,7 @@ __device__ void select_inviscid_scheme(DZone *zone, real *pv, integer tid, DPara
 
 // Implementations
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 void
 compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
                       const Parameter &parameter) {
@@ -73,7 +73,7 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
   }
 }
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __global__ void
 inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
   integer labels[3]{0, 0, 0};
@@ -166,7 +166,7 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
   }
 }
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void
 select_inviscid_scheme(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
                        const real *jac) {

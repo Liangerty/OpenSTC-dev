@@ -7,18 +7,18 @@
 #include "Thermo.cuh"
 
 namespace cfd {
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void
 reconstruction(real *pv, real *pv_l, real *pv_r, integer idx_shared, DZone *zone, DParameter *param);
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void
 AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
                             const real *jac);
 
 // Implementations
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void
 reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone *zone,
                DParameter *param) {
@@ -73,7 +73,7 @@ reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone
   }
 }
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void
 AUSMP_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
                             const real *jac) {
