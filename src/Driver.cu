@@ -16,7 +16,7 @@ Driver<mix_model, turb_method, turb>::Driver(Parameter &parameter, Mesh &mesh_):
     field.emplace_back(parameter, mesh[blk]);
   }
 
-  initialize_basic_variables<mix_model, turb_method>(parameter, mesh, field, spec);
+  initialize_basic_variables<mix_model, turb>(parameter, mesh, field, spec);
 
   if (parameter.get_int("initial") == 1) {
     // If continue from previous results, then we need the residual scales

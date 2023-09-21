@@ -74,6 +74,7 @@ template<>
 struct TurbMethod<SST::SST>{
   static constexpr bool isLaminar = false;
   static constexpr bool hasMut = true;
+  static constexpr TurbulentSimulationMethod type = TurbulentSimulationMethod::RANS;
 };
 
 }
