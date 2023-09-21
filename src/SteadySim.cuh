@@ -93,7 +93,7 @@ void steady_simulation(Driver<mix_model, turb_method, turb> &driver) {
       // the compiler will not treat the called function as a template function,
       // so we need to explicitly specify the "template" keyword here.
       // If we call this function in the "driver" member function, we can omit the "template" keyword, as shown in Driver.cu, line 88.
-      driver.bound_cond.template apply_boundary_conditions<mix_model, turb_method>(mesh[b], field[b], param);
+      driver.bound_cond.template apply_boundary_conditions<mix_model, turb>(mesh[b], field[b], param);
     }
     // Third, transfer data between and within processes
     data_communication<mix_model, turb_method>(mesh, field, parameter, step, param);

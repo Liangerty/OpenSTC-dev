@@ -75,6 +75,8 @@ struct TurbMethod<SST::SST>{
   static constexpr bool isLaminar = false;
   static constexpr bool hasMut = true;
   static constexpr TurbulentSimulationMethod type = TurbulentSimulationMethod::RANS;
+  static constexpr TurbMethodLabel label = TurbMethodLabel::SST;
+  static constexpr bool needWallDistance = true;
 };
 
 }
