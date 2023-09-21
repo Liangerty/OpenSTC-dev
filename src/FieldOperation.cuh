@@ -216,7 +216,7 @@ __device__ real compute_total_energy_1_point(integer i, integer j, integer k, cf
   return total_energy;
 }
 
-template<MixtureModel mix_model, TurbulenceMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __global__ void update_q_and_bv(cfd::DZone *zone, DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const auto i = (integer) (blockDim.x * blockIdx.x + threadIdx.x);
