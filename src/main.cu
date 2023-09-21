@@ -27,18 +27,17 @@ int main(int argc, char *argv[]) {
       // RANS
       if (reaction == 1) {
         // Finite rate chemistry
-        cfd::Driver<MixtureModel::FR, cfd::SST::SST> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::FR, cfd::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
-//        driver.simulate();
       } else if (reaction == 2) {
         // Flamelet model
-        cfd::Driver<MixtureModel::FL, cfd::SST::SST> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::FL, cfd::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       } else {
         // Pure mixing among species
-        cfd::Driver<MixtureModel::Mixture, cfd::SST::SST> driver(parameter, mesh);
+        cfd::Driver<MixtureModel::Mixture, cfd::SST> driver(parameter, mesh);
         driver.initialize_computation();
         simulate(driver);
       }
@@ -60,7 +59,7 @@ int main(int argc, char *argv[]) {
     // Air simulation
     if (turbulent_method == 1) {
       // RANS and air
-      cfd::Driver<MixtureModel::Air, cfd::SST::SST> driver(parameter, mesh);
+      cfd::Driver<MixtureModel::Air, cfd::SST> driver(parameter, mesh);
       driver.initialize_computation();
       simulate(driver);
     } else {

@@ -43,7 +43,7 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
           }
           const dim3 bpg{(extent[0] - 1) / tpb.x + 1, (extent[1] - 1) / tpb.y + 1, (extent[2] - 1) / tpb.z + 1};
           if constexpr (TurbMethod<turb_method>::label==TurbMethodLabel::SST){
-            SST::implicit_treat<<<bpg, tpb>>>(d_ptr, param);
+            implicit_treat_for_SST<<<bpg, tpb>>>(d_ptr, param);
           }
         }
       }

@@ -115,6 +115,6 @@ void Driver<MixtureModel::FL, turb>::initialize_computation() {
 //}
 
 // Explicitly instantiate the template, which means the flamelet model can only be used with RANS and LES.
-template struct Driver<MixtureModel::FL,SST::SST>;
+template struct Driver<MixtureModel::FL,SST>;
 //template<> struct Driver<MixtureModel::FL,TurbulenceMethod::LES>;
 }

@@ -140,14 +140,14 @@ void write_reference_state(const Parameter &parameter) {
 template
 struct Driver<MixtureModel::Air, Laminar>;
 template
-struct Driver<MixtureModel::Air, SST::SST>;
+struct Driver<MixtureModel::Air, SST>;
 template
 struct Driver<MixtureModel::Mixture, Laminar>;
 template
-struct Driver<MixtureModel::Mixture, SST::SST>;
+struct Driver<MixtureModel::Mixture, SST>;
 template
 struct Driver<MixtureModel::FR, Laminar>;
 template
-struct Driver<MixtureModel::FR, SST::SST>;
+struct Driver<MixtureModel::FR, SST>;
 
 } // cfd
