@@ -155,7 +155,34 @@ __global__ void update_physical_properties(DZone *zone, DParameter *param) {
   zone->mach(i, j, k) = zone->vel(i, j, k) / zone->acoustic_speed(i, j, k);
 }
 
-template<MixtureModel mix_model>
+//template<MixtureModel mix_model>
+//__global__ void initialize_mut(DZone *zone, DParameter *param) {
+//  const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
+//  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
+//  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - 1;
+//  integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - 1;
+//  if (i >= mx + 1 || j >= my + 1 || k >= mz + 1) return;
+//
+//  switch (param->rans_model) {
+//    case 1://SA
+//      break;
+//    case 2:
+//    default: // SST
+//      const real temperature{zone->bv(i, j, k, 5)};
+//      real mul = Sutherland(temperature);
+//      if constexpr (mix_model != MixtureModel::Air) {
+//        auto &yk = zone->sv;
+//        real mw{0};
+//        for (auto l = 0; l < param->n_spec; ++l) {
+//          mw += yk(i, j, k, l) / param->mw[l];
+//        }
+//        mw = 1 / mw;
+//        mul = compute_viscosity(i, j, k, temperature, mw, param, zone);
+//      }
+//      SST::compute_mut(zone, i, j, k, mul, param);
+//  }
+//}
+template<MixtureModel mix_model, class turb_method>
 __global__ void initialize_mut(DZone *zone, DParameter *param) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
   integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
@@ -163,24 +190,18 @@ __global__ void initialize_mut(DZone *zone, DParameter *param) {
   integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - 1;
   if (i >= mx + 1 || j >= my + 1 || k >= mz + 1) return;
 
-  switch (param->rans_model) {
-    case 1://SA
-      break;
-    case 2:
-    default: // SST
-      const real temperature{zone->bv(i, j, k, 5)};
-      real mul = Sutherland(temperature);
-      if constexpr (mix_model != MixtureModel::Air) {
-        auto &yk = zone->sv;
-        real mw{0};
-        for (auto l = 0; l < param->n_spec; ++l) {
-          mw += yk(i, j, k, l) / param->mw[l];
-        }
-        mw = 1 / mw;
-        mul = compute_viscosity(i, j, k, temperature, mw, param, zone);
-      }
-      SST::compute_mut(zone, i, j, k, mul, param);
+  const real temperature{zone->bv(i, j, k, 5)};
+  real mul = Sutherland(temperature);
+  if constexpr (mix_model != MixtureModel::Air) {
+    auto &yk = zone->sv;
+    real mw{0};
+    for (auto l = 0; l < param->n_spec; ++l) {
+      mw += yk(i, j, k, l) / param->mw[l];
+    }
+    mw = 1 / mw;
+    mul = compute_viscosity(i, j, k, temperature, mw, param, zone);
   }
+  turb_method::compute_mut(zone, i, j, k, mul, param);
 }
 
 template<MixtureModel mixture_model>

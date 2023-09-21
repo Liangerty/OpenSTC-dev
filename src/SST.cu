@@ -4,59 +4,59 @@
 #include "Constants.h"
 
 namespace cfd::SST {
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
-  const auto &m = zone->metric(i, j, k);
-  const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
-  const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
-  const real zeta_x{m(3, 1)}, zeta_y{m(3, 2)}, zeta_z{m(3, 3)};
-
-  // Compute the gradient of velocity
-  const auto &bv = zone->bv;
-  const real u_y = 0.5 * (xi_y * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
-                          eta_y * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
-                          zeta_y * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
-  const real u_z = 0.5 * (xi_z * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
-                          eta_z * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
-                          zeta_z * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
-  const real v_x = 0.5 * (xi_x * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
-                          eta_x * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
-                          zeta_x * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
-  const real v_z = 0.5 * (xi_z * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
-                          eta_z * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
-                          zeta_z * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
-  const real w_x = 0.5 * (xi_x * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
-                          eta_x * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
-                          zeta_x * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
-  const real w_y = 0.5 * (xi_y * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
-                          eta_y * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
-                          zeta_y * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
-
-  // First, compute the turbulent viscosity.
-  // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
-  // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
-  // In order to alleviate the computational burden, we put the computation of mut here.
-  const integer n_spec{param->n_spec};
-  const real density = zone->bv(i, j, k, 0);
-  const real tke = zone->sv(i, j, k, n_spec);
-  const real rhoK = density * tke;
-  const real omega = zone->sv(i, j, k, n_spec + 1);
-  const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
-
-  // If wall, mut=0. Else, compute mut as in the if statement.
-  real f2{1};
-  const real dy = zone->wall_distance(i, j, k);
-  if (dy > 1e-25) {
-    const real param1 = 2 * std::sqrt(tke) / (0.09 * omega * dy);
-    const real param2 = 500 * mul / (density * dy * dy * omega);
-    const real arg2 = max(param1, param2);
-    f2 = std::tanh(arg2 * arg2);
-  }
-  real mut{0};
-  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
-    mut = a_1 * rhoK / denominator;
-  }
-  zone->mut(i, j, k) = mut;
-}
+//__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
+//  const auto &m = zone->metric(i, j, k);
+//  const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
+//  const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
+//  const real zeta_x{m(3, 1)}, zeta_y{m(3, 2)}, zeta_z{m(3, 3)};
+//
+//  // Compute the gradient of velocity
+//  const auto &bv = zone->bv;
+//  const real u_y = 0.5 * (xi_y * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
+//                          eta_y * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
+//                          zeta_y * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
+//  const real u_z = 0.5 * (xi_z * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
+//                          eta_z * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
+//                          zeta_z * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
+//  const real v_x = 0.5 * (xi_x * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
+//                          eta_x * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
+//                          zeta_x * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
+//  const real v_z = 0.5 * (xi_z * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
+//                          eta_z * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
+//                          zeta_z * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
+//  const real w_x = 0.5 * (xi_x * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
+//                          eta_x * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
+//                          zeta_x * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
+//  const real w_y = 0.5 * (xi_y * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
+//                          eta_y * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
+//                          zeta_y * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
+//
+//  // First, compute the turbulent viscosity.
+//  // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
+//  // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
+//  // In order to alleviate the computational burden, we put the computation of mut here.
+//  const integer n_spec{param->n_spec};
+//  const real density = zone->bv(i, j, k, 0);
+//  const real tke = zone->sv(i, j, k, n_spec);
+//  const real rhoK = density * tke;
+//  const real omega = zone->sv(i, j, k, n_spec + 1);
+//  const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
+//
+//  // If wall, mut=0. Else, compute mut as in the if statement.
+//  real f2{1};
+//  const real dy = zone->wall_distance(i, j, k);
+//  if (dy > 1e-25) {
+//    const real param1 = 2 * std::sqrt(tke) / (0.09 * omega * dy);
+//    const real param2 = 500 * mul / (density * dy * dy * omega);
+//    const real arg2 = max(param1, param2);
+//    f2 = std::tanh(arg2 * arg2);
+//  }
+//  real mut{0};
+//  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+//    mut = a_1 * rhoK / denominator;
+//  }
+//  zone->mut(i, j, k) = mut;
+//}
 
 __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
   const integer n_spec{param->n_spec};
@@ -267,4 +267,58 @@ __device__ real Zeman_compressibility_correction(real Mt, real gammaP1) {
   return betaMultiXiMultiFMt;
 }
 
+__device__ void SST::compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
+  const auto &m = zone->metric(i, j, k);
+  const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
+  const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
+  const real zeta_x{m(3, 1)}, zeta_y{m(3, 2)}, zeta_z{m(3, 3)};
+
+  // Compute the gradient of velocity
+  const auto &bv = zone->bv;
+  const real u_y = 0.5 * (xi_y * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
+                          eta_y * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
+                          zeta_y * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
+  const real u_z = 0.5 * (xi_z * (bv(i + 1, j, k, 1) - bv(i - 1, j, k, 1)) +
+                          eta_z * (bv(i, j + 1, k, 1) - bv(i, j - 1, k, 1)) +
+                          zeta_z * (bv(i, j, k + 1, 1) - bv(i, j, k - 1, 1)));
+  const real v_x = 0.5 * (xi_x * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
+                          eta_x * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
+                          zeta_x * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
+  const real v_z = 0.5 * (xi_z * (bv(i + 1, j, k, 2) - bv(i - 1, j, k, 2)) +
+                          eta_z * (bv(i, j + 1, k, 2) - bv(i, j - 1, k, 2)) +
+                          zeta_z * (bv(i, j, k + 1, 2) - bv(i, j, k - 1, 2)));
+  const real w_x = 0.5 * (xi_x * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
+                          eta_x * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
+                          zeta_x * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
+  const real w_y = 0.5 * (xi_y * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
+                          eta_y * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
+                          zeta_y * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
+
+
+  // First, compute the turbulent viscosity.
+  // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
+  // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
+  // In order to alleviate the computational burden, we put the computation of mut here.
+  const integer n_spec{param->n_spec};
+  const real density = zone->bv(i, j, k, 0);
+  const real tke = zone->sv(i, j, k, n_spec);
+  const real rhoK = density * tke;
+  const real omega = zone->sv(i, j, k, n_spec + 1);
+  const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
+
+  // If wall, mut=0. Else, compute mut as in the if statement.
+  real f2{1};
+  const real dy = zone->wall_distance(i, j, k);
+  if (dy > 1e-25) {
+    const real param1 = 2 * std::sqrt(tke) / (0.09 * omega * dy);
+    const real param2 = 500 * mul / (density * dy * dy * omega);
+    const real arg2 = max(param1, param2);
+    f2 = std::tanh(arg2 * arg2);
+  }
+  real mut{0};
+  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+    mut = a_1 * rhoK / denominator;
+  }
+  zone->mut(i, j, k) = mut;
+}
 }

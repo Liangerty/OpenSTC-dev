@@ -74,9 +74,8 @@ void Driver<MixtureModel::FL, turb_method, turb>::initialize_computation() {
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
     compute_velocity<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
 //    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
-    if constexpr (turb_method == TurbulenceMethod::RANS) {
-      // We need the wall distance here. And the mut are computed for bc
-      initialize_mut<MixtureModel::FL><<<bpg, tpb >>>(field[i].d_ptr, param);
+    if constexpr (TurbMethod<turb>::hasMut==true){
+      initialize_mut<MixtureModel::FL, turb><<<bpg, tpb >>>(field[i].d_ptr, param);
     }
   }
   cudaDeviceSynchronize();
