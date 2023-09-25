@@ -11,7 +11,7 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, i
 
 template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __global__ void
-inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, cfd::DParameter *param);
+inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, cfd::DParameter *param, integer inviscid_scheme);
 
 template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void compute_viscous_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var);
@@ -30,7 +30,7 @@ viscous_flux_hv(cfd::DZone *zone, integer max_extent, cfd::DParameter *param);
 
 template<MixtureModel mix_model, TurbulenceMethod turb_method>
 __device__ void select_inviscid_scheme(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
-                                       const real *jac);
+                                       const real *jac, real *entropy_fix_delta, integer direction);
 
 // Implementations
 
@@ -47,7 +47,8 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
     // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
     shared_mem += n_computation_per_block * parameter.get_int("n_spec") * sizeof(real);
   }
-  if (param->inviscid_scheme == 2) {
+  const integer invisible_scheme = parameter.get_int("inviscid_scheme");
+  if (invisible_scheme == 2) {
     // If Roe scheme, we need more shared memory to contain all metrics instead of only 3.
     // Plus the memory for entropy fix delta.
     shared_mem += n_computation_per_block * 6 * sizeof(real)+n_computation_per_block*sizeof(real);
@@ -61,7 +62,7 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
 
     dim3 TPB(tpb[0], tpb[1], tpb[2]);
     dim3 BPG(bpg[0], bpg[1], bpg[2]);
-    inviscid_flux_1d<mix_model, turb_method><<<BPG, TPB, shared_mem>>>(zone, dir, extent[dir], param);
+    inviscid_flux_1d<mix_model, turb_method><<<BPG, TPB, shared_mem>>>(zone, dir, extent[dir], param, invisible_scheme);
   }
 
   if (extent[2] > 1) {
@@ -74,13 +75,13 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
 
     dim3 TPB(tpb[0], tpb[1], tpb[2]);
     dim3 BPG(bpg[0], bpg[1], bpg[2]);
-    inviscid_flux_1d<mix_model, turb_method><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
+    inviscid_flux_1d<mix_model, turb_method><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param, invisible_scheme);
   }
 }
 
 template<MixtureModel mix_model, class turb_method>
 __global__ void
-inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
+inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param, integer inviscid_scheme) {
   integer labels[3]{0, 0, 0};
   labels[direction] = 1;
   const integer tid = threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2];
@@ -119,7 +120,7 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
   for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, z, zPrime
     pv[i_shared * n_reconstruct + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
   }
-  if (param->inviscid_scheme == 2) {
+  if (inviscid_scheme == 2) {
     for (auto l = 1; l < 4; ++l) {
       metric[i_shared * 9 + (l - 1) * 3] = zone->metric(idx[0], idx[1], idx[2])(l, 1);
       metric[i_shared * 9 + (l - 1) * 3 + 1] = zone->metric(idx[0], idx[1], idx[2])(l, 2);
@@ -145,7 +146,7 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
-      if (param->inviscid_scheme == 2) {
+      if (inviscid_scheme == 2) {
         for (auto l = 1; l < 4; ++l) {
           metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
           metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
@@ -171,7 +172,7 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
-      if (param->inviscid_scheme == 2) {
+      if (inviscid_scheme == 2) {
         for (auto l = 1; l < 4; ++l) {
           metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
           metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
