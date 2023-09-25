@@ -17,6 +17,7 @@ struct DParameter {
                       FlameletLib *flamelet_lib = nullptr);
 
   integer myid = 0;   // The process id of this process
+  integer dim = 3;    // The dimension of the problem
 
   // Number of equations and variables
   integer n_var=0;                    // The number of variables in the conservative variable

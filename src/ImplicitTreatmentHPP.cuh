@@ -1,10 +1,7 @@
 #pragma once
 
 #include "Define.h"
-//#include "DParameter.h"
 #include "DPLURHPP.cuh"
-//#include "SST.cuh"
-//#include "FiniteRateChem.cuh"
 
 namespace cfd {
 template<MixtureModel mixture_model, class turb_method>

@@ -6,7 +6,8 @@
 
 cfd::DParameter::DParameter(cfd::Parameter &parameter, Species &species, Reaction *reaction,
                             FlameletLib *flamelet_lib) :
-    myid{parameter.get_int("myid")}, inviscid_scheme{parameter.get_int("inviscid_scheme")},
+    myid{parameter.get_int("myid")}, dim{parameter.get_int("dimension")},
+    inviscid_scheme{parameter.get_int("inviscid_scheme")},
     reconstruction{parameter.get_int("reconstruction")}, limiter{parameter.get_int("limiter")},
     viscous_scheme{parameter.get_int("viscous_order")}, rans_model{parameter.get_int("RANS_model")},
     turb_implicit{parameter.get_int("turb_implicit")}, n_var{parameter.get_int("n_var")},

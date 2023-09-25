@@ -47,6 +47,11 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
     // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
     shared_mem += n_computation_per_block * parameter.get_int("n_spec") * sizeof(real);
   }
+  if (param->inviscid_scheme == 2) {
+    // If Roe scheme, we need more shared memory to contain all metrics instead of only 3.
+    // Plus the memory for entropy fix delta.
+    shared_mem += n_computation_per_block * 6 * sizeof(real)+n_computation_per_block*sizeof(real);
+  }
 
   for (auto dir = 0; dir < 2; ++dir) {
     integer tpb[3]{1, 1, 1};
@@ -100,7 +105,11 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
   real *pv = s;
   real *metric = &pv[n_point * n_reconstruct];
   real *jac = &metric[n_point * 3];
+  if (param->inviscid_scheme == 2) {
+    jac = &metric[n_point * 9];
+  }
   real *fc = &jac[n_point];
+  real *entropy_fix_delta = &fc[n_point * n_var];
 
   const integer i_shared = tid - 1 + ngg;
   for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
@@ -110,8 +119,16 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
   for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, z, zPrime
     pv[i_shared * n_reconstruct + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
   }
-  for (auto l = 1; l < 4; ++l) {
-    metric[i_shared * 3 + l - 1] = zone->metric(idx[0], idx[1], idx[2])(direction + 1, l);
+  if (param->inviscid_scheme == 2) {
+    for (auto l = 1; l < 4; ++l) {
+      metric[i_shared * 9 + (l - 1) * 3] = zone->metric(idx[0], idx[1], idx[2])(l, 1);
+      metric[i_shared * 9 + (l - 1) * 3 + 1] = zone->metric(idx[0], idx[1], idx[2])(l, 2);
+      metric[i_shared * 9 + (l - 1) * 3 + 2] = zone->metric(idx[0], idx[1], idx[2])(l, 3);
+    }
+  } else {
+    for (auto l = 1; l < 4; ++l) {
+      metric[i_shared * 3 + l - 1] = zone->metric(idx[0], idx[1], idx[2])(direction + 1, l);
+    }
   }
   jac[i_shared] = zone->jac(idx[0], idx[1], idx[2]);
 
@@ -128,8 +145,16 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
-      for (auto l = 1; l < 4; ++l) {
-        metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
+      if (param->inviscid_scheme == 2) {
+        for (auto l = 1; l < 4; ++l) {
+          metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
+          metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
+          metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+        }
+      } else {
+        for (auto l = 1; l < 4; ++l) {
+          metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
+        }
       }
       jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
     }
@@ -146,16 +171,23 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
       for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
-      for (auto l = 1; l < 4; ++l) {
-        metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
+      if (param->inviscid_scheme == 2) {
+        for (auto l = 1; l < 4; ++l) {
+          metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
+          metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
+          metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+        }
+      } else {
+        for (auto l = 1; l < 4; ++l) {
+          metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
+        }
       }
       jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
     }
   }
   __syncthreads();
 
-//  (*inviscid_scheme)->compute_inviscid_flux(zone, pv, tid, param, fc, metric, jac);
-  select_inviscid_scheme<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac);
+  select_inviscid_scheme<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac, entropy_fix_delta, direction);
   __syncthreads();
 
 
@@ -169,10 +201,12 @@ inviscid_flux_1d(cfd::DZone *zone, integer direction, integer max_extent, DParam
 template<MixtureModel mix_model, class turb_method>
 __device__ void
 select_inviscid_scheme(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
-                       const real *jac) {
+                       const real *jac, real *entropy_fix_delta, integer direction) {
   const integer inviscid_scheme = param->inviscid_scheme;
   switch (inviscid_scheme) {
     case 2: // Roe
+      Roe_compute_inviscid_flux<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac, entropy_fix_delta, direction);
+      break;
     case 3: // AUSM+
     default:
       AUSMP_compute_inviscid_flux<mix_model, turb_method>(zone, pv, tid, param, fc, metric, jac);
