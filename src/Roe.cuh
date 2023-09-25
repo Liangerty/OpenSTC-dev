@@ -8,32 +8,183 @@
 
 namespace cfd {
 template<MixtureModel mix_model>
+__global__ void
+Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
+
+template<MixtureModel mix_model>
 __device__ void
-compute_entropy_fix_delta(const real *pv, const real *metric, DParameter *param, real *entropy_fix_delta, integer tid);
+Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
+                            const real *jac, real *entropy_fix_delta, integer direction, integer idx[3]);
+
+template<MixtureModel mix_model>
+__device__ void
+compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared, integer idx[3],
+                          DZone *zone, const real *metric);
 
 template<MixtureModel mixtureModel>
 __device__ void
-compute_half_sum_left_right_flux(real *pv_l, real *pv_r, DParameter *param, const real *jac, real *metric,
+compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter *param, const real *jac,
+                                 const real *metric,
                                  integer i_shared, integer direction, real *fc);
 
-template<MixtureModel mix_model, class turb_method>
+template<MixtureModel mix_model>
+void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
+                               const Parameter &parameter) {
+  const integer extent[3]{block.mx, block.my, block.mz};
+  constexpr integer block_dim = 32;
+  const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
+  auto shared_mem = (block_dim * n_var // fc
+                     + n_computation_per_block * (n_var + 1)) * sizeof(real) // pv[n_var]+jacobian
+                    + n_computation_per_block * 9 * sizeof(real) // metric[9]
+                    + n_computation_per_block * sizeof(real); // entropy fix delta
+  if constexpr (mix_model == MixtureModel::FL) {
+    // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
+    shared_mem += n_computation_per_block * parameter.get_int("n_spec") * sizeof(real);
+  }
+
+  for (auto dir = 0; dir < 2; ++dir) {
+    integer tpb[3]{1, 1, 1};
+    tpb[dir] = block_dim;
+    integer bpg[3]{extent[0], extent[1], extent[2]};
+    bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 1) + 1;
+
+    dim3 TPB(tpb[0], tpb[1], tpb[2]);
+    dim3 BPG(bpg[0], bpg[1], bpg[2]);
+    Roe_compute_inviscid_flux_1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, dir, extent[dir], param);
+  }
+
+  if (extent[2] > 1) {
+    // 3D computation
+    // Number of threads in the 3rd direction cannot exceed 64
+    integer tpb[3]{1, 1, 1};
+    tpb[2] = 64;
+    integer bpg[3]{extent[0], extent[1], extent[2]};
+    bpg[2] = (extent[2] - 1) / (tpb[2] - 1) + 1;
+
+    dim3 TPB(tpb[0], tpb[1], tpb[2]);
+    dim3 BPG(bpg[0], bpg[1], bpg[2]);
+    Roe_compute_inviscid_flux_1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
+  }
+}
+
+template<MixtureModel mix_model>
+__global__ void
+Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
+  integer labels[3]{0, 0, 0};
+  labels[direction] = 1;
+  const auto tid = (integer) (threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2]);
+  const auto block_dim = (integer) (blockDim.x * blockDim.y * blockDim.z);
+  const auto ngg{zone->ngg};
+  const integer n_point = block_dim + 2 * ngg - 1;
+
+  integer idx[3];
+  idx[0] = (integer) ((blockDim.x - labels[0]) * blockIdx.x + threadIdx.x);
+  idx[1] = (integer) ((blockDim.y - labels[1]) * blockIdx.y + threadIdx.y);
+  idx[2] = (integer) ((blockDim.z - labels[2]) * blockIdx.z + threadIdx.z);
+  idx[direction] -= 1;
+  if (idx[direction] >= max_extent) return;
+
+  // load variables to shared memory
+  extern __shared__ real s[];
+  const auto n_var{param->n_var};
+  auto n_reconstruct{n_var};
+  if constexpr (mix_model == MixtureModel::FL) {
+    n_reconstruct += param->n_spec;
+  }
+  real *pv = s;
+  real *metric = &pv[n_point * n_reconstruct];
+  real *jac = &metric[n_point * 9];
+  real *entropy_fix_delta = &jac[n_point];
+  real *fc = &entropy_fix_delta[n_point];
+
+  const integer i_shared = tid - 1 + ngg;
+  for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
+    pv[i_shared * n_reconstruct + l] = zone->bv(idx[0], idx[1], idx[2], l);
+  }
+  const auto n_scalar{param->n_scalar};
+  for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, z, zPrime
+    pv[i_shared * n_reconstruct + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
+  }
+  for (auto l = 1; l < 4; ++l) {
+    metric[i_shared * 9 + (l - 1) * 3] = zone->metric(idx[0], idx[1], idx[2])(l, 1);
+    metric[i_shared * 9 + (l - 1) * 3 + 1] = zone->metric(idx[0], idx[1], idx[2])(l, 2);
+    metric[i_shared * 9 + (l - 1) * 3 + 2] = zone->metric(idx[0], idx[1], idx[2])(l, 3);
+  }
+  jac[i_shared] = zone->jac(idx[0], idx[1], idx[2]);
+
+  // ghost cells
+  if (tid == 0) {
+    // Responsible for the left (ngg-1) points
+    for (auto i = 1; i < ngg; ++i) {
+      const auto ig_shared = ngg - 1 - i;
+      const integer g_idx[3]{idx[0] - i * labels[0], idx[1] - i * labels[1], idx[2] - i * labels[2]};
+
+      for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
+        pv[ig_shared * n_reconstruct + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
+      }
+      for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
+        pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
+      }
+      for (auto l = 1; l < 4; ++l) {
+        metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
+        metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
+        metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+      }
+      jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
+    }
+  }
+  if (tid == block_dim - 1 || idx[direction] == max_extent - 1) {
+    // Responsible for the right ngg points
+    for (auto i = 1; i <= ngg; ++i) {
+      const auto ig_shared = tid + i + ngg - 1;
+      const integer g_idx[3]{idx[0] + i * labels[0], idx[1] + i * labels[1], idx[2] + i * labels[2]};
+
+      for (auto l = 0; l < 5; ++l) { // 0-rho,1-u,2-v,3-w,4-p
+        pv[ig_shared * n_reconstruct + l] = zone->bv(g_idx[0], g_idx[1], g_idx[2], l);
+      }
+      for (auto l = 0; l < n_scalar; ++l) { // Y_k, k, omega, Z, Z_prime...
+        pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
+      }
+      for (auto l = 1; l < 4; ++l) {
+        metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
+        metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
+        metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+      }
+      jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
+    }
+  }
+  __syncthreads();
+
+  Roe_compute_half_point_flux<mix_model>(zone, pv, tid, param, fc, metric, jac, entropy_fix_delta,
+                                         direction, idx);
+  __syncthreads();
+
+
+  if (tid > 0) {
+    for (integer l = 0; l < n_var; ++l) {
+      zone->dq(idx[0], idx[1], idx[2], l) -= fc[tid * n_var + l] - fc[(tid - 1) * n_var + l];
+    }
+  }
+}
+
+
+template<MixtureModel mix_model>
 __device__ void
-Roe_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
-                          const real *jac, real *entropy_fix_delta, integer direction) {
-  const auto ng{zone->ngg};
+Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
+                            const real *jac, real *entropy_fix_delta, integer direction, integer idx[3]) {
   constexpr integer n_reconstruction_max =
       7 + MAX_SPEC_NUMBER + 4; // rho,u,v,w,p,Y_{1...Ns},(k,omega,z,z_prime),E,gamma
   real pv_l[n_reconstruction_max], pv_r[n_reconstruction_max];
-  const integer i_shared = tid - 1 + ng;
-  reconstruction<mix_model, turb_method>(pv, pv_l, pv_r, i_shared, zone, param);
+  const integer i_shared = tid - 1 + zone->ngg;
+  reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, zone, param);
 
   // The entropy fix delta may not need shared memory, which may be replaced by shuffle instructions.
   integer n_reconstruct{param->n_var};
   if constexpr (mix_model == MixtureModel::FL) {
     n_reconstruct += param->n_spec;
   }
-  compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], &metric[i_shared * 9], param, entropy_fix_delta,
-                                       tid);
+  compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], param, entropy_fix_delta,
+                                       i_shared, idx, zone, &metric[i_shared * 9]);
 
   // Compute the left and right convective fluxes, which uses the reconstructed primitive variables, rather than the roe averaged ones.
   auto fci = &fc[tid * param->n_var];
@@ -91,7 +242,7 @@ Roe_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param,
 
   real characteristic[3]{Uk - gradK * c, Uk, Uk + gradK * c};
   // entropy fix
-  const real entropy_fix_delta_ave{entropy_fix_delta[tid] + entropy_fix_delta[tid + 1]};
+  const real entropy_fix_delta_ave{0.5 * (entropy_fix_delta[i_shared] + entropy_fix_delta[i_shared + 1])};
   for (auto &cc: characteristic) {
     cc = std::abs(cc);
     if (cc < entropy_fix_delta_ave) {
@@ -114,7 +265,7 @@ Roe_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param,
   }
   dq[4] = jac_ave * (pv_r[n_reconstruct] - pv_l[n_reconstruct]);
 
-  real c1 = (gamma - 1) * (ek * dq[0] - u * dq[1] - v * dq[2] - w * dq[3] + dq[4]) / c * c;
+  real c1 = (gamma - 1) * (ek * dq[0] - u * dq[1] - v * dq[2] - w * dq[3] + dq[4]) / (c * c);
   real c2 = (kx * dq[1] + ky * dq[2] + kz * dq[3] - Uk * dq[0]) / c;
   for (integer l = 0; l < param->n_spec; ++l) {
     c1 += (mw / param->mw[l] - h_i[l] * (gamma - 1) / (c * c)) * dq[l + 5];
@@ -129,8 +280,11 @@ Roe_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param,
   LDq[2] = ky * c3 - ((kx * w - kz * u) * dq[0] - kz * dq[3] + kz * dq[1]) / c;
   LDq[3] = kz * c3 - ((ky * u - kx * v) * dq[0] - ky * dq[1] + kx * dq[2]) / c;
   LDq[4] = 0.5 * (c1 + c2);
-  for (integer l = 0; l < param->n_spec; ++l) {
-    LDq[l + 5] = dq[l + 5] - svm[l] * dq[0];
+  for (integer l = 0; l < param->n_scalar_transported; ++l) {
+    if constexpr (mix_model != MixtureModel::FL)
+      LDq[l + 5] = dq[l + 5] - svm[l] * dq[0];
+    else
+      LDq[l + 5] = dq[l + 5] - svm[l + param->n_spec] * dq[0];
   }
 
   // To reduce memory usage, we use dq array to contain the b array to be computed
@@ -148,20 +302,21 @@ Roe_compute_inviscid_flux(DZone *zone, real *pv, integer tid, DParameter *param,
   for (integer l = 0; l < param->n_spec; ++l)
     c3 += (h_i[l] - mw / param->mw[l] * c * c / (gamma - 1)) * b[l + 5];
 
-  fc[0] += 0.5 * c1;
-  fc[1] += 0.5 * (u * c1 + kx * c2 - c * (kz * b[2] - ky * b[3]));
-  fc[2] += 0.5 * (v * c1 + ky * c2 - c * (kx * b[3] - kz * b[1]));
-  fc[3] += 0.5 * (w * c1 + kz * c2 - c * (ky * b[1] - kx * b[2]));
-  fc[4] += 0.5 *
-           (h * c1 + Uk * c2 - c * c * c0 / (gamma - 1) + c * (kz * v - ky * w) * b[1] + (kx * w - kz * u) * b[2] +
-            (ky * u - kx * v) * b[3] + c3);
+  fci[0] += 0.5 * c1;
+  fci[1] += 0.5 * (u * c1 + kx * c2 - c * (kz * b[2] - ky * b[3]));
+  fci[2] += 0.5 * (v * c1 + ky * c2 - c * (kx * b[3] - kz * b[1]));
+  fci[3] += 0.5 * (w * c1 + kz * c2 - c * (ky * b[1] - kx * b[2]));
+  fci[4] += 0.5 *
+            (h * c1 + Uk * c2 - c * c * c0 / (gamma - 1) + c * ((kz * v - ky * w) * b[1] + (kx * w - kz * u) * b[2] +
+                                                                (ky * u - kx * v) * b[3]) + c3);
   for (integer l = 0; l < param->n_var - 5; ++l)
-    fc[5 + l] += 0.5 * (b[l + 5] + svm[l] * c1);
+    fci[5 + l] += 0.5 * (b[l + 5] + svm[l] * c1);
 }
 
 template<MixtureModel mix_model>
 __device__ void
-compute_entropy_fix_delta(const real *pv, const real *metric, DParameter *param, real *entropy_fix_delta, integer tid) {
+compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared, integer idx[3],
+                          DZone *zone, const real *metric) {
   const real U = abs(pv[1] * metric[0] + pv[2] * metric[1] + pv[3] * metric[2]);
   const real V = abs(pv[1] * metric[3] + pv[2] * metric[4] + pv[3] * metric[5]);
   const real W = abs(pv[1] * metric[6] + pv[2] * metric[7] + pv[3] * metric[8]);
@@ -193,16 +348,17 @@ compute_entropy_fix_delta(const real *pv, const real *metric, DParameter *param,
   // need to be given in setup files
   real entropy_fix_factor{0.125};
   if (param->dim == 2) {
-    entropy_fix_delta[tid] = entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
+    entropy_fix_delta[i_shared] = entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
   } else {
     // 3D
-    entropy_fix_delta[tid] = entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
+    entropy_fix_delta[i_shared] = entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
   }
 }
 
 template<MixtureModel mixtureModel>
 __device__ void
-compute_half_sum_left_right_flux(real *pv_l, real *pv_r, DParameter *param, const real *jac, real *metric,
+compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter *param, const real *jac,
+                                 const real *metric,
                                  integer i_shared, integer direction, real *fc) {
   real JacKx = jac[i_shared] * metric[i_shared * 9 + direction * 3];
   real JacKy = jac[i_shared] * metric[i_shared * 9 + direction * 3 + 1];
@@ -213,16 +369,17 @@ compute_half_sum_left_right_flux(real *pv_l, real *pv_r, DParameter *param, cons
   if constexpr (mixtureModel == MixtureModel::FL) {
     n_reconstruct += param->n_spec;
   }
-  fc[0] = 0.5 * Uk * pv_l[0];
-  fc[1] = 0.5 * (fc[0] * pv_l[1] + pv_l[4] * JacKx);
-  fc[2] = 0.5 * (fc[0] * pv_l[2] + pv_l[4] * JacKy);
-  fc[3] = 0.5 * (fc[0] * pv_l[3] + pv_l[4] * JacKz);
+  real coeff = Uk * pv_l[0];
+  fc[0] = 0.5 * coeff;
+  fc[1] = 0.5 * (coeff * pv_l[1] + pv_l[4] * JacKx);
+  fc[2] = 0.5 * (coeff * pv_l[2] + pv_l[4] * JacKy);
+  fc[3] = 0.5 * (coeff * pv_l[3] + pv_l[4] * JacKz);
   fc[4] = 0.5 * Uk * (pv_l[4] + pv_l[n_reconstruct]);
   for (integer l = 5; l < param->n_var; ++l) {
     if constexpr (mixtureModel != MixtureModel::FL) {
-      fc[l] = 0.5 * fc[0] * pv_l[l];
+      fc[l] = 0.5 * coeff * pv_l[l];
     } else {
-      fc[l] = 0.5 * fc[0] * pv_l[l + param->n_spec];
+      fc[l] = 0.5 * coeff * pv_l[l + param->n_spec];
     }
   }
 
@@ -231,7 +388,7 @@ compute_half_sum_left_right_flux(real *pv_l, real *pv_r, DParameter *param, cons
   JacKz = jac[i_shared + 1] * metric[(i_shared + 1) * 9 + direction * 3 + 2];
   Uk = pv_r[1] * JacKx + pv_r[2] * JacKy + pv_r[3] * JacKz;
 
-  real coeff = Uk * pv_r[0];
+  coeff = Uk * pv_r[0];
   fc[0] += 0.5 * coeff;
   fc[1] += 0.5 * (coeff * pv_r[1] + pv_r[4] * JacKx);
   fc[2] += 0.5 * (coeff * pv_r[2] + pv_r[4] * JacKy);

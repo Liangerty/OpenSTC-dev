@@ -12,12 +12,12 @@ template<MixtureModel mix_model>
 __global__ void
 AUSMP_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
 
-template<MixtureModel mix_model, class turb_method>
+template<MixtureModel mix_model>
 __device__ void
 AUSMP_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
                               const real *jac);
 
-template<MixtureModel mix_model, class turb_method>
+template<MixtureModel mix_model>
 void AUSMP_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
                                  const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
@@ -151,11 +151,10 @@ template<MixtureModel mix_model>
 __device__ void
 AUSMP_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
                               const real *jac) {
-  const auto ng{zone->ngg};
   constexpr integer n_reconstruction_max =
       7 + MAX_SPEC_NUMBER + 4; // rho,u,v,w,p,Y_{1...Ns},(k,omega,z,z_prime),E,gamma
   real pv_l[n_reconstruction_max], pv_r[n_reconstruction_max];
-  const integer i_shared = tid - 1 + ng;
+  const integer i_shared = tid - 1 + zone->ngg;
   reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, zone, param);
 
   auto metric_l = &metric[i_shared * 3], metric_r = &metric[(i_shared + 1) * 3];
