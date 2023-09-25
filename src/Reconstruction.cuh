@@ -15,7 +15,7 @@ MUSCL_reconstruct(const real *pv, real *pv_l, real *pv_r, integer idx_shared, in
 
 __device__ void NND2_reconstruct(const real *pv, real *pv_l, real *pv_r, integer idx_shared, integer n_var, integer limiter);
 
-template<MixtureModel mix_model, class turb_method>
+template<MixtureModel mix_model>
 __device__ void
 reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone *zone,
                DParameter *param) {
