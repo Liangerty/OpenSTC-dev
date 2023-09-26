@@ -20,7 +20,7 @@ struct DParameter {
   integer dim = 3;    // The dimension of the problem
 
   // Number of equations and variables
-  integer n_var=0;                    // The number of variables in the conservative variable
+  integer n_var = 0;                    // The number of variables in the conservative variable
   integer n_scalar = 0;               // The number of scalar variables
   integer n_scalar_transported = 0;   // The number of scalar variables in the conservative equation, this is only different from n_scalar when we use flamelet model
   integer n_spec = 0;                 // The number of species
@@ -31,6 +31,7 @@ struct DParameter {
   integer inviscid_scheme = 0;  // The tag for inviscid scheme. 3 - AUSM+
   integer reconstruction = 2; // The reconstruction method for inviscid flux computation
   integer limiter = 0;  // The tag for limiter method
+  real entropy_fix_factor = 0; // The factor for entropy fix
   integer viscous_scheme = 0; // The tag for viscous scheme. 0 - Inviscid, 2 - 2nd order central discretization
 
   integer rans_model = 0;  // The tag for RANS model. 0 - Laminar, 1 - SA, 2 - SST

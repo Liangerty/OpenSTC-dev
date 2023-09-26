@@ -17,11 +17,6 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
                             const real *jac, real *entropy_fix_delta, integer direction, integer idx[3]);
 
 template<MixtureModel mix_model>
-__device__ void
-compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared,
-                          const real *metric);
-
-template<MixtureModel mix_model>
 __global__ void
 compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param);
 
@@ -122,13 +117,11 @@ __global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
   const real ky = sqrt(metric(2, 1) * metric(2, 1) + metric(2, 2) * metric(2, 2) + metric(2, 3) * metric(2, 3));
   const real kz = sqrt(metric(3, 1) * metric(3, 1) + metric(3, 2) * metric(3, 2) + metric(3, 3) * metric(3, 3));
 
-  // need to be given in setup files
-  real entropy_fix_factor{0.125};
   if (param->dim == 2) {
-    zone->entropy_fix_delta(i, j, k) = entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
+    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
   } else {
     // 3D
-    zone->entropy_fix_delta(i, j, k) = entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
+    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
   }
 }
 
@@ -370,48 +363,6 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
                                                                 (ky * u - kx * v) * b[3]) + c3);
   for (integer l = 0; l < param->n_var - 5; ++l)
     fci[5 + l] += 0.5 * (b[l + 5] + svm[l] * c1);
-}
-
-template<MixtureModel mix_model>
-__device__ void
-compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared,
-                          const real *metric) {
-  const real U = abs(pv[1] * metric[0] + pv[2] * metric[1] + pv[3] * metric[2]);
-  const real V = abs(pv[1] * metric[3] + pv[2] * metric[4] + pv[3] * metric[5]);
-  const real W = abs(pv[1] * metric[6] + pv[2] * metric[7] + pv[3] * metric[8]);
-
-  real specific_heat_ratio{gamma_air};
-  if constexpr (mix_model != MixtureModel::Air) {
-    real mw_inv{0.0};
-    for (integer l = 0; l < param->n_spec; ++l) {
-      mw_inv += pv[5 + l] / param->mw[l];
-    }
-    const real T{pv[4] / (pv[0] * R_u * mw_inv)};
-
-    real cv{0}, cp{0};
-    real cp_i[MAX_SPEC_NUMBER];
-    compute_cp(T, cp_i, param);
-    for (integer l = 0; l < param->n_spec; ++l) {
-      cp += cp_i[l] * pv[5 + l];
-      cv += pv[5 + l] * (cp_i[l] - R_u / param->mw[l]);
-    }
-    specific_heat_ratio = cp / cv;
-  }
-
-  const real c = std::sqrt(specific_heat_ratio * pv[4] / pv[0]);
-
-  const real kx = sqrt(metric[0] * metric[0] + metric[1] * metric[1] + metric[2] * metric[2]);
-  const real ky = sqrt(metric[3] * metric[3] + metric[4] * metric[4] + metric[5] * metric[5]);
-  const real kz = sqrt(metric[6] * metric[6] + metric[7] * metric[7] + metric[8] * metric[8]);
-
-  // need to be given in setup files
-  real entropy_fix_factor{0.125};
-  if (param->dim == 2) {
-    entropy_fix_delta[i_shared] = entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
-  } else {
-    // 3D
-    entropy_fix_delta[i_shared] = entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
-  }
 }
 
 template<MixtureModel mixtureModel>
