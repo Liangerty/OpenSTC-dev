@@ -21,6 +21,10 @@ __device__ void
 compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared,
                           const real *metric);
 
+template<MixtureModel mix_model>
+__global__ void
+compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param);
+
 template<MixtureModel mixtureModel>
 __device__ void
 compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter *param, const real *jac,
@@ -31,7 +35,18 @@ template<MixtureModel mix_model>
 void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
                                const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
-  constexpr integer block_dim = 32;
+
+  // Compute the entropy fix delta
+  dim3 thread_per_block{8, 8, 4};
+  if (extent[2] == 1) {
+    thread_per_block = {16, 16, 1};
+  }
+  dim3 block_per_grid{(extent[0] + 1) / thread_per_block.x + 1,
+                      (extent[1] + 1) / thread_per_block.y + 1,
+                      (extent[2] + 1) / thread_per_block.z + 1};
+  compute_entropy_fix_delta<mix_model><<<block_per_grid, thread_per_block>>>(zone, param);
+
+  constexpr integer block_dim = 128;
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
   auto shared_mem = (block_dim * n_var // fc
                      + n_computation_per_block * (n_var + 1)) * sizeof(real) // pv[n_var]+jacobian
@@ -64,6 +79,56 @@ void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter 
     dim3 TPB(tpb[0], tpb[1], tpb[2]);
     dim3 BPG(bpg[0], bpg[1], bpg[2]);
     Roe_compute_inviscid_flux_1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
+  }
+}
+
+template<MixtureModel mix_model>
+__global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
+  const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
+  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
+  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - 1;
+  integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - 1;
+  if (i >= mx + 1 || j >= my + 1 || k >= mz + 1) return;
+
+  const auto &bv{zone->bv};
+  const auto &metric{zone->metric(i, j, k)};
+
+  const real U = abs(bv(i, j, k, 1) * metric(1, 1) + bv(i, j, k, 2) * metric(1, 2) + bv(i, j, k, 3) * metric(1, 3));
+  const real V = abs(bv(i, j, k, 1) * metric(2, 1) + bv(i, j, k, 2) * metric(2, 2) + bv(i, j, k, 3) * metric(2, 3));
+  const real W = abs(bv(i, j, k, 1) * metric(3, 1) + bv(i, j, k, 2) * metric(3, 2) + bv(i, j, k, 3) * metric(3, 3));
+
+  real specific_heat_ratio{gamma_air};
+  if constexpr (mix_model != MixtureModel::Air) {
+    real mw_inv{0.0};
+    const auto &sv{zone->sv};
+    for (integer l = 0; l < param->n_spec; ++l) {
+      mw_inv += sv(i, j, k, l) / param->mw[l];
+    }
+    const real T{bv(i, j, k, 4) / (bv(i, j, k, 0) * R_u * mw_inv)};
+
+    real cv{0}, cp{0};
+    real cp_i[MAX_SPEC_NUMBER];
+    compute_cp(T, cp_i, param);
+    for (integer l = 0; l < param->n_spec; ++l) {
+      cp += cp_i[l] * sv(i, j, k, l);
+      cv += sv(i, j, k, l) * (cp_i[l] - R_u / param->mw[l]);
+    }
+    specific_heat_ratio = cp / cv;
+  }
+
+  const real c = std::sqrt(specific_heat_ratio * bv(i, j, k, 4) / bv(i, j, k, 0));
+
+  const real kx = sqrt(metric(1, 1) * metric(1, 1) + metric(1, 2) * metric(1, 2) + metric(1, 3) * metric(1, 3));
+  const real ky = sqrt(metric(2, 1) * metric(2, 1) + metric(2, 2) * metric(2, 2) + metric(2, 3) * metric(2, 3));
+  const real kz = sqrt(metric(3, 1) * metric(3, 1) + metric(3, 2) * metric(3, 2) + metric(3, 3) * metric(3, 3));
+
+  // need to be given in setup files
+  real entropy_fix_factor{0.125};
+  if (param->dim == 2) {
+    zone->entropy_fix_delta(i, j, k) = entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
+  } else {
+    // 3D
+    zone->entropy_fix_delta(i, j, k) = entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
   }
 }
 
@@ -111,6 +176,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
     metric[i_shared * 9 + (l - 1) * 3 + 2] = zone->metric(idx[0], idx[1], idx[2])(l, 3);
   }
   jac[i_shared] = zone->jac(idx[0], idx[1], idx[2]);
+  entropy_fix_delta[i_shared] = zone->entropy_fix_delta(idx[0], idx[1], idx[2]);
 
   // ghost cells
   if (tid == 0) {
@@ -134,6 +200,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
     }
   }
   if (tid == block_dim - 1 || idx[direction] == max_extent - 1) {
+    entropy_fix_delta[tid + ngg] = zone->entropy_fix_delta(idx[0] + labels[0], idx[1] + labels[1], idx[2] + labels[2]);
     // Responsible for the right ngg points
     for (auto i = 1; i <= ngg; ++i) {
       const auto ig_shared = tid + i + ngg - 1;
@@ -183,8 +250,8 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
   if constexpr (mix_model == MixtureModel::FL) {
     n_reconstruct += param->n_spec;
   }
-  compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], param, entropy_fix_delta,
-                                       i_shared, &metric[i_shared * 9]);
+//  compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], param, entropy_fix_delta,
+//                                       i_shared, &metric[i_shared * 9]);
 
   // Compute the left and right convective fluxes, which uses the reconstructed primitive variables, rather than the roe averaged ones.
   auto fci = &fc[tid * param->n_var];
@@ -277,7 +344,7 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
   memset(LDq, 0, sizeof(real) * (5 + MAX_SPEC_NUMBER + 4));
   LDq[0] = 0.5 * (c1 - c2);
   LDq[1] = kx * c3 - ((kz * v - ky * w) * dq[0] - kz * dq[2] + ky * dq[3]) / c;
-  LDq[2] = ky * c3 - ((kx * w - kz * u) * dq[0] - kz * dq[3] + kz * dq[1]) / c;
+  LDq[2] = ky * c3 - ((kx * w - kz * u) * dq[0] - kx * dq[3] + kz * dq[1]) / c;
   LDq[3] = kz * c3 - ((ky * u - kx * v) * dq[0] - ky * dq[1] + kx * dq[2]) / c;
   LDq[4] = 0.5 * (c1 + c2);
   for (integer l = 0; l < param->n_scalar_transported; ++l) {

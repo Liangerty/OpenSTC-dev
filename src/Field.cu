@@ -176,17 +176,6 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
       }
     }
   }
-//  if constexpr (turb_method == TurbulenceMethod::RANS) {
-//    h_ptr->mut.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-//    h_ptr->turb_therm_cond.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-//    if (parameter.get_int("RANS_model") == 2) {
-//      // SST
-//      h_ptr->wall_distance.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-//      if (parameter.get_int("turb_implicit") == 1) {
-//        h_ptr->turb_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 2, 0);
-//      }
-//    }
-//  }
 
   h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
   h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
@@ -202,6 +191,10 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   }
   if (parameter.get_bool("steady")) { // steady simulation
     h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  }
+  if (parameter.get_int("inviscid_scheme") == 2) {
+    // Roe scheme
+    h_ptr->entropy_fix_delta.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }
 
   cudaMalloc(&d_ptr, sizeof(DZone));
