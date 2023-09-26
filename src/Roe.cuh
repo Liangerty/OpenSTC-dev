@@ -50,7 +50,7 @@ void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter 
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
   auto shared_mem = (block_dim * n_var // fc
                      + n_computation_per_block * (n_var + 1)) * sizeof(real) // pv[n_var]+jacobian
-                    + n_computation_per_block * 9 * sizeof(real) // metric[9]
+                    + n_computation_per_block * 3 * sizeof(real) // metric[3]
                     + n_computation_per_block * sizeof(real); // entropy fix delta
   if constexpr (mix_model == MixtureModel::FL) {
     // For flamelet model, we need also the mass fractions of species, which is not included in the n_var
@@ -158,7 +158,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
   }
   real *pv = s;
   real *metric = &pv[n_point * n_reconstruct];
-  real *jac = &metric[n_point * 9];
+  real *jac = &metric[n_point * 3];
   real *entropy_fix_delta = &jac[n_point];
   real *fc = &entropy_fix_delta[n_point];
 
@@ -171,9 +171,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
     pv[i_shared * n_reconstruct + 5 + l] = zone->sv(idx[0], idx[1], idx[2], l);
   }
   for (auto l = 1; l < 4; ++l) {
-    metric[i_shared * 9 + (l - 1) * 3] = zone->metric(idx[0], idx[1], idx[2])(l, 1);
-    metric[i_shared * 9 + (l - 1) * 3 + 1] = zone->metric(idx[0], idx[1], idx[2])(l, 2);
-    metric[i_shared * 9 + (l - 1) * 3 + 2] = zone->metric(idx[0], idx[1], idx[2])(l, 3);
+    metric[i_shared * 3 + l - 1] = zone->metric(idx[0], idx[1], idx[2])(direction + 1, l);
   }
   jac[i_shared] = zone->jac(idx[0], idx[1], idx[2]);
   entropy_fix_delta[i_shared] = zone->entropy_fix_delta(idx[0], idx[1], idx[2]);
@@ -192,9 +190,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 1; l < 4; ++l) {
-        metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
-        metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
-        metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+        metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
       }
       jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
     }
@@ -213,9 +209,7 @@ Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_ex
         pv[ig_shared * n_reconstruct + 5 + l] = zone->sv(g_idx[0], g_idx[1], g_idx[2], l);
       }
       for (auto l = 1; l < 4; ++l) {
-        metric[ig_shared * 9 + (l - 1) * 3] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 1);
-        metric[ig_shared * 9 + (l - 1) * 3 + 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 2);
-        metric[ig_shared * 9 + (l - 1) * 3 + 2] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(l, 3);
+        metric[ig_shared * 3 + l - 1] = zone->metric(g_idx[0], g_idx[1], g_idx[2])(direction + 1, l);
       }
       jac[ig_shared] = zone->jac(g_idx[0], g_idx[1], g_idx[2]);
     }
@@ -250,8 +244,6 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
   if constexpr (mix_model == MixtureModel::FL) {
     n_reconstruct += param->n_spec;
   }
-//  compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], param, entropy_fix_delta,
-//                                       i_shared, &metric[i_shared * 9]);
 
   // Compute the left and right convective fluxes, which uses the reconstructed primitive variables, rather than the roe averaged ones.
   auto fci = &fc[tid * param->n_var];
@@ -301,9 +293,9 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
   }
 
   // Compute the characteristics
-  real kx = 0.5 * (metric[i_shared * 9 + direction * 3] + metric[(i_shared + 1) * 9 + direction * 3]);
-  real ky = 0.5 * (metric[i_shared * 9 + direction * 3 + 1] + metric[(i_shared + 1) * 9 + direction * 3 + 1]);
-  real kz = 0.5 * (metric[i_shared * 9 + direction * 3 + 2] + metric[(i_shared + 1) * 9 + direction * 3 + 2]);
+  real kx = 0.5 * (metric[i_shared * 3] + metric[(i_shared + 1) * 3]);
+  real ky = 0.5 * (metric[i_shared * 3 + 1] + metric[(i_shared + 1) * 3 + 1]);
+  real kz = 0.5 * (metric[i_shared * 3 + 2] + metric[(i_shared + 1) * 3 + 2]);
   const real gradK = std::sqrt(kx * kx + ky * ky + kz * kz);
   real Uk = kx * u + ky * v + kz * w;
 
@@ -427,9 +419,9 @@ __device__ void
 compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter *param, const real *jac,
                                  const real *metric,
                                  integer i_shared, integer direction, real *fc) {
-  real JacKx = jac[i_shared] * metric[i_shared * 9 + direction * 3];
-  real JacKy = jac[i_shared] * metric[i_shared * 9 + direction * 3 + 1];
-  real JacKz = jac[i_shared] * metric[i_shared * 9 + direction * 3 + 2];
+  real JacKx = jac[i_shared] * metric[i_shared * 3];
+  real JacKy = jac[i_shared] * metric[i_shared * 3 + 1];
+  real JacKz = jac[i_shared] * metric[i_shared * 3 + 2];
   real Uk = pv_l[1] * JacKx + pv_l[2] * JacKy + pv_l[3] * JacKz;
 
   integer n_reconstruct{param->n_var};
@@ -450,9 +442,9 @@ compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter 
     }
   }
 
-  JacKx = jac[i_shared + 1] * metric[(i_shared + 1) * 9 + direction * 3];
-  JacKy = jac[i_shared + 1] * metric[(i_shared + 1) * 9 + direction * 3 + 1];
-  JacKz = jac[i_shared + 1] * metric[(i_shared + 1) * 9 + direction * 3 + 2];
+  JacKx = jac[i_shared + 1] * metric[(i_shared + 1) * 3];
+  JacKy = jac[i_shared + 1] * metric[(i_shared + 1) * 3 + 1];
+  JacKz = jac[i_shared + 1] * metric[(i_shared + 1) * 3 + 2];
   Uk = pv_r[1] * JacKx + pv_r[2] * JacKy + pv_r[3] * JacKz;
 
   coeff = Uk * pv_r[0];
