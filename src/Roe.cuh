@@ -18,8 +18,8 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
 
 template<MixtureModel mix_model>
 __device__ void
-compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared, integer idx[3],
-                          DZone *zone, const real *metric);
+compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared,
+                          const real *metric);
 
 template<MixtureModel mixtureModel>
 __device__ void
@@ -184,7 +184,7 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
     n_reconstruct += param->n_spec;
   }
   compute_entropy_fix_delta<mix_model>(&pv[i_shared * n_reconstruct], param, entropy_fix_delta,
-                                       i_shared, idx, zone, &metric[i_shared * 9]);
+                                       i_shared, &metric[i_shared * 9]);
 
   // Compute the left and right convective fluxes, which uses the reconstructed primitive variables, rather than the roe averaged ones.
   auto fci = &fc[tid * param->n_var];
@@ -315,8 +315,8 @@ Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *para
 
 template<MixtureModel mix_model>
 __device__ void
-compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared, integer idx[3],
-                          DZone *zone, const real *metric) {
+compute_entropy_fix_delta(const real *pv, DParameter *param, real *entropy_fix_delta, integer i_shared,
+                          const real *metric) {
   const real U = abs(pv[1] * metric[0] + pv[2] * metric[1] + pv[3] * metric[2]);
   const real V = abs(pv[1] * metric[3] + pv[2] * metric[4] + pv[3] * metric[5]);
   const real W = abs(pv[1] * metric[6] + pv[2] * metric[7] + pv[3] * metric[8]);
