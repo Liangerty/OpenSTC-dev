@@ -3,8 +3,45 @@
 #include "Transport.cuh"
 #include "Constants.h"
 
-namespace cfd::SST {
-__device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
+namespace cfd {
+
+__global__ void implicit_treat_for_SST(DZone *zone, const DParameter *param) {
+  const integer extent[3]{zone->mx, zone->my, zone->mz};
+  const integer i = blockDim.x * blockIdx.x + threadIdx.x;
+  const integer j = blockDim.y * blockIdx.y + threadIdx.y;
+  const integer k = blockDim.z * blockIdx.z + threadIdx.z;
+  if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
+
+  // Used in explicit temporal scheme
+  const integer i_turb_cv{param->i_turb_cv};
+  auto &dq = zone->dq;
+  const real dt_local = zone->dt_local(i, j, k);
+  const auto &src_jac = zone->turb_src_jac;
+  dq(i, j, k, i_turb_cv) /= 1 - dt_local * src_jac(i, j, k, 0);
+  dq(i, j, k, i_turb_cv + 1) /= 1 - dt_local * src_jac(i, j, k, 1);
+}
+
+__device__ real SST::Wilcox_compressibility_correction(real Mt) {
+  constexpr real Mt0{0.25};
+  real betaMultiXiMultiFMt{0};
+  if (const real DMt = Mt - Mt0;DMt > 0) {
+    betaMultiXiMultiFMt = SST::beta_star * 2 * (Mt * Mt - Mt0 * Mt0);
+  }
+  return betaMultiXiMultiFMt;
+}
+
+__device__ real SST::Zeman_compressibility_correction(real Mt, real gammaP1) {
+  const real Mt0{0.25 * sqrt(2.0 / gammaP1)};
+  real betaMultiXiMultiFMt{0};
+  if (const real DMt = Mt - Mt0;DMt > 0) {
+    constexpr real Lambda2{0.66 * 0.66}; // For boundary layer flow, Lambda=0.66; For free shear flow, Lambda=0.6
+    real F_Mt = 1 - exp(-0.5 * gammaP1 * DMt * DMt / Lambda2);
+    betaMultiXiMultiFMt = SST::beta_star * 0.75 * F_Mt;
+  }
+  return betaMultiXiMultiFMt;
+}
+
+__device__ void SST::compute_mut(cfd::DZone *zone, integer i, integer j, integer k, real mul, const DParameter *param) {
   const auto &m = zone->metric(i, j, k);
   const real xi_x{m(1, 1)}, xi_y{m(1, 2)}, xi_z{m(1, 3)};
   const real eta_x{m(2, 1)}, eta_y{m(2, 2)}, eta_z{m(2, 3)};
@@ -31,6 +68,7 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
                           eta_y * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
                           zeta_y * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
 
+
   // First, compute the turbulent viscosity.
   // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
   // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
@@ -52,13 +90,13 @@ __device__ void compute_mut(cfd::DZone *zone, integer i, integer j, integer k, r
     f2 = std::tanh(arg2 * arg2);
   }
   real mut{0};
-  if (const real denominator = max(SST::a_1 * omega, vorticity * f2); denominator > 1e-25) {
-    mut = SST::a_1 * rhoK / denominator;
+  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+    mut = a_1 * rhoK / denominator;
   }
   zone->mut(i, j, k) = mut;
 }
 
-__device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
+__device__ void SST::compute_source_and_mut(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
   const integer n_spec{param->n_spec};
 
   const auto &m = zone->metric(i, j, k);
@@ -140,19 +178,19 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
     f2 = std::tanh(arg2 * arg2);
 
     const real CDkomega{max(1e-20, inter_var)};
-    const real param3{4 * density * SST::sigma_omega2 * tke / (CDkomega * d2)};
+    const real param3{4 * density * sigma_omega2 * tke / (CDkomega * d2)};
 
     const real arg1{min(max(param1, param2), param3)};
     f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
   }
   real mut{0};
-  if (const real denominator = max(SST::a_1 * omega, vorticity * f2); denominator > 1e-25) {
-    mut = SST::a_1 * rhoK / denominator;
+  if (const real denominator = max(a_1 * omega, vorticity * f2); denominator > 1e-25) {
+    mut = a_1 * rhoK / denominator;
   }
   zone->mut(i, j, k) = mut;
 
-  real beta = SST::beta_2 + SST::delta_beta * f1;
-  real betaStar{SST::beta_star};
+  real beta = beta_2 + delta_beta * f1;
+  real betaStar{beta_star};
   if (auto correction = param->compressibility_correction;correction) {
     real specific_heat_ratio{gamma_air};
     if (n_spec > 0) {
@@ -166,7 +204,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
         beta_iStarMulXiStarMulFMt = Wilcox_compressibility_correction(Mt);
         break;
       case 2: // Sarkar
-        beta_iStarMulXiStarMulFMt = SST::beta_star * Mt * Mt;
+        beta_iStarMulXiStarMulFMt = beta_star * Mt * Mt;
         break;
       case 3: // Zeman
       default:// Zeman
@@ -193,7 +231,7 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
     zone->dq(i, j, k, i_turb_cv) += jac * (prod_k - diss_k);
 
     // omega source term
-    const real gamma = SST::gamma2 + SST::delta_gamma * f1;
+    const real gamma = gamma2 + delta_gamma * f1;
     const real prod_omega = gamma * density / mut * prod_k + (1 - f1) * inter_var;
     const real diss_omega = beta * density * omega * omega;
     zone->dq(i, j, k, i_turb_cv + 1) += jac * (prod_omega - diss_omega);
@@ -205,24 +243,8 @@ __device__ void compute_source_and_mut(cfd::DZone *zone, integer i, integer j, i
   }
 }
 
-__global__ void implicit_treat(cfd::DZone *zone, const DParameter *param) {
-  const integer extent[3]{zone->mx, zone->my, zone->mz};
-  const integer i = blockDim.x * blockIdx.x + threadIdx.x;
-  const integer j = blockDim.y * blockIdx.y + threadIdx.y;
-  const integer k = blockDim.z * blockIdx.z + threadIdx.z;
-  if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
-
-  // Used in explicit temporal scheme
-  const integer i_turb_cv{param->i_turb_cv};
-  auto &dq = zone->dq;
-  const real dt_local = zone->dt_local(i, j, k);
-  const auto &src_jac = zone->turb_src_jac;
-  dq(i, j, k, i_turb_cv) /= 1 - dt_local * src_jac(i, j, k, 0);
-  dq(i, j, k, i_turb_cv + 1) /= 1 - dt_local * src_jac(i, j, k, 1);
-}
-
 __device__ void
-implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param) {
+SST::implicit_treat_for_dq0(DZone *zone, real diag, integer i, integer j, integer k, const DParameter *param) {
   // Used in DPLUR, called from device
   const integer i_turb_cv{param->i_turb_cv};
   auto &dq = zone->dq;
@@ -233,8 +255,8 @@ implicit_treat_for_dq0(cfd::DZone *zone, real diag, integer i, integer j, intege
 }
 
 __device__ void
-implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total,
-                       const DParameter *param) {
+SST::implicit_treat_for_dqk(DZone *zone, real diag, integer i, integer j, integer k, const real *dq_total,
+                            const DParameter *param) {
   // Used in DPLUR, called from device
   const integer i_turb_cv{param->i_turb_cv};
   auto &dqk = zone->dqk;
@@ -246,25 +268,4 @@ implicit_treat_for_dqk(cfd::DZone *zone, real diag, integer i, integer j, intege
   dqk(i, j, k, i_turb_cv + 1) =
       dq0(i, j, k, i_turb_cv + 1) + dt_local * dq_total[i_turb_cv + 1] / (diag - dt_local * src_jac(i, j, k, 1));
 }
-
-__device__ real Wilcox_compressibility_correction(real Mt) {
-  constexpr real Mt0{0.25};
-  real betaMultiXiMultiFMt{0};
-  if (const real DMt = Mt - Mt0;DMt > 0) {
-    betaMultiXiMultiFMt = SST::beta_star * 2 * (Mt * Mt - Mt0 * Mt0);
-  }
-  return betaMultiXiMultiFMt;
-}
-
-__device__ real Zeman_compressibility_correction(real Mt, real gammaP1) {
-  const real Mt0{0.25 * sqrt(2.0 / gammaP1)};
-  real betaMultiXiMultiFMt{0};
-  if (const real DMt = Mt - Mt0;DMt > 0) {
-    constexpr real Lambda2{0.66 * 0.66}; // For boundary layer flow, Lambda=0.66; For free shear flow, Lambda=0.6
-    real F_Mt = 1 - exp(-0.5 * gammaP1 * DMt * DMt / Lambda2);
-    betaMultiXiMultiFMt = SST::beta_star * 0.75 * F_Mt;
-  }
-  return betaMultiXiMultiFMt;
-}
-
 }

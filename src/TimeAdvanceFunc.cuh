@@ -5,20 +5,21 @@
 #include "Field.h"
 #include "Constants.h"
 #include "Thermo.cuh"
+#include "TurbMethod.hpp"
 
 namespace cfd {
 __global__ void store_last_step(DZone *zone);
 
-template<MixtureModel mixture, TurbMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void local_time_step(cfd::DZone *zone, DParameter *param);
 
 __global__ void compute_square_of_dbv(DZone *zone);
 
-template<MixtureModel mixture, TurbMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void limit_flow(cfd::DZone *zone, cfd::DParameter *param, integer blk_id);
 }
 
-template<MixtureModel mixture, TurbMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void cfd::local_time_step(cfd::DZone *zone, cfd::DParameter *param) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -57,7 +58,7 @@ __global__ void cfd::local_time_step(cfd::DZone *zone, cfd::DParameter *param) {
   }
   real coeff_1 = max(gamma, 4.0 / 3.0) / bv(i, j, k, 0);
   real coeff_2 = zone->mul(i, j, k) / param->Pr;
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     coeff_2 += zone->mut(i, j, k) / param->Prt;
   }
   real spectral_radius_viscous = grad_xi * grad_xi + grad_eta * grad_eta;
@@ -70,7 +71,7 @@ __global__ void cfd::local_time_step(cfd::DZone *zone, cfd::DParameter *param) {
   zone->dt_local(i, j, k) = param->cfl / (spectral_radius_inviscid + spectral_radius_viscous);
 }
 
-template<MixtureModel mixture, TurbMethod turb_method>
+template<MixtureModel mixture, class turb_method>
 __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, integer blk_id) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
   const integer i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -187,63 +188,61 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
   }
 
   // Limit the turbulent values
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (param->rans_model == 2) {
-      // Record the computed values
-      constexpr integer n_turb = 2;
-      real t_var[n_turb];
-      t_var[0] = sv(i, j, k, n_spec);
-      t_var[1] = sv(i, j, k, n_spec + 1);
+  if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+    // Record the computed values
+    constexpr integer n_turb = 2;
+    real t_var[n_turb];
+    t_var[0] = sv(i, j, k, n_spec);
+    t_var[1] = sv(i, j, k, n_spec + 1);
 
-      // Find the unphysical values and limit them
-      unphysical = false;
-      if (isnan(t_var[0]) || isnan(t_var[1]) || t_var[0] < 0 || t_var[1] < 0) {
-        unphysical = true;
-      }
+    // Find the unphysical values and limit them
+    unphysical = false;
+    if (isnan(t_var[0]) || isnan(t_var[1]) || t_var[0] < 0 || t_var[1] < 0) {
+      unphysical = true;
+    }
 
-      if (unphysical) {
-        real updated_var[n_turb];
-        memset(updated_var, 0, n_turb * sizeof(real));
-        integer kn{0};
-        // Compute the sum of all "good" points surrounding the "bad" point
-        for (integer ka = -1; ka < 2; ++ka) {
-          const integer k1{k + ka};
-          if (k1 < 0 || k1 >= mz) continue;
-          for (integer ja = -1; ja < 2; ++ja) {
-            const integer j1{j + ja};
-            if (j1 < 0 || j1 >= my) continue;
-            for (integer ia = -1; ia < 2; ++ia) {
-              const integer i1{i + ia};
-              if (i1 < 0 || i1 >= mz)continue;
+    if (unphysical) {
+      real updated_var[n_turb];
+      memset(updated_var, 0, n_turb * sizeof(real));
+      integer kn{0};
+      // Compute the sum of all "good" points surrounding the "bad" point
+      for (integer ka = -1; ka < 2; ++ka) {
+        const integer k1{k + ka};
+        if (k1 < 0 || k1 >= mz) continue;
+        for (integer ja = -1; ja < 2; ++ja) {
+          const integer j1{j + ja};
+          if (j1 < 0 || j1 >= my) continue;
+          for (integer ia = -1; ia < 2; ++ia) {
+            const integer i1{i + ia};
+            if (i1 < 0 || i1 >= mz)continue;
 
-              if (isnan(sv(i1, j1, k1, n_spec)) || isnan(sv(i1, j1, k1, 1 + n_spec)) || sv(i1, j1, k1, n_spec) < 0 ||
-                  sv(i1, j1, k1, n_spec + 1) < 0) {
-                continue;
-              }
-
-              updated_var[0] += sv(i1, j1, k1, n_spec);
-              updated_var[1] += sv(i1, j1, k1, 1 + n_spec);
-
-              ++kn;
+            if (isnan(sv(i1, j1, k1, n_spec)) || isnan(sv(i1, j1, k1, 1 + n_spec)) || sv(i1, j1, k1, n_spec) < 0 ||
+                sv(i1, j1, k1, n_spec + 1) < 0) {
+              continue;
             }
+
+            updated_var[0] += sv(i1, j1, k1, n_spec);
+            updated_var[1] += sv(i1, j1, k1, 1 + n_spec);
+
+            ++kn;
           }
         }
-
-        // Compute the average of the surrounding points
-        if (kn > 0) {
-          const real kn_inv{1.0 / kn};
-          updated_var[0] *= kn_inv;
-          updated_var[1] *= kn_inv;
-        } else {
-          // The surrounding points are all "bad"
-          updated_var[0] = t_var[0] < 0 ? param->limit_flow.sv_inf[n_spec] : t_var[0];
-          updated_var[1] = t_var[1] < 0 ? param->limit_flow.sv_inf[n_spec + 1] : t_var[1];
-        }
-
-        // Assign averaged values for the bad point
-        sv(i, j, k, n_spec) = updated_var[0];
-        sv(i, j, k, n_spec + 1) = updated_var[1];
       }
+
+      // Compute the average of the surrounding points
+      if (kn > 0) {
+        const real kn_inv{1.0 / kn};
+        updated_var[0] *= kn_inv;
+        updated_var[1] *= kn_inv;
+      } else {
+        // The surrounding points are all "bad"
+        updated_var[0] = t_var[0] < 0 ? param->limit_flow.sv_inf[n_spec] : t_var[0];
+        updated_var[1] = t_var[1] < 0 ? param->limit_flow.sv_inf[n_spec + 1] : t_var[1];
+      }
+
+      // Assign averaged values for the bad point
+      sv(i, j, k, n_spec) = updated_var[0];
+      sv(i, j, k, n_spec + 1) = updated_var[1];
     }
   }
 

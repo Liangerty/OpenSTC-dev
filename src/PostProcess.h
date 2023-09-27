@@ -17,8 +17,8 @@ class Mesh;
 struct Field;
 struct DZone;
 
-template<MixtureModel mix_model, TurbMethod turb_method>
-void post_process(Driver<mix_model, turb_method> &driver) {
+template<MixtureModel mix_model, class turb>
+void post_process(Driver<mix_model, turb> &driver) {
   auto &parameter{driver.parameter};
   static const std::vector<integer> processes{parameter.get_int_array("post_process")};
 

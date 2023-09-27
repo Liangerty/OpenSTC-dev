@@ -52,8 +52,8 @@ __global__ void reduction_of_dv_squared(real *arr, integer size) {
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
-real compute_residual(Driver<mix_model, turb_method> &driver, integer step) {
+template<MixtureModel mix_model, class turb>
+real compute_residual(Driver<mix_model, turb> &driver, integer step) {
   const auto& mesh{driver.mesh};
   std::array<real, 4>& res{driver.res};
 

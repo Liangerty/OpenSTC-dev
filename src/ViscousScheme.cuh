@@ -10,16 +10,16 @@ namespace cfd {
 
 struct DParameter;
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_gv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_hv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv, DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -67,7 +67,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i + 1, j, k));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i + 1, j, k));
   }
   const real viscosity = mul + mut;
@@ -79,15 +79,13 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   const real tau_xy = viscosity * (u_y + v_x);
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (param->rans_model == 2) {
-      // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                   pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec));
-      tau_xx += twoThirdrhoKm;
-      tau_yy += twoThirdrhoKm;
-      tau_zz += twoThirdrhoKm;
-    }
+  if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+    // SST
+    const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                 pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec));
+    tau_xx += twoThirdrhoKm;
+    tau_yy += twoThirdrhoKm;
+    tau_zz += twoThirdrhoKm;
   }
 
   const real xi_x_div_jac = 0.5 * (m(1, 1) * zone->jac(i, j, k) + m1(1, 1) * zone->jac(i + 1, j, k));
@@ -106,7 +104,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i + 1, j, k));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i + 1, j, k));
   }
 
@@ -121,7 +119,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (TurbMethod<turb_method>::hasMut) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -195,66 +193,57 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
-    const integer rans_model{param->rans_model};
+  if constexpr (TurbMethod<turb_method>::label==TurbMethodLabel::SST) {
+    const integer it = param->n_spec;
+    auto &sv = zone->sv;
 
-    switch (rans_model) {
-      case 1: // SA
-        break;
-      case 2: // SST
-      default:
-        // Default SST
-        const integer it = param->n_spec;
-        auto &sv = zone->sv;
+    const real k_xi = sv(i + 1, j, k, it) - sv(i, j, k, it);
+    const real k_eta =
+        0.25 * (sv(i, j + 1, k, it) - sv(i, j - 1, k, it) + sv(i + 1, j + 1, k, it) - sv(i + 1, j - 1, k, it));
+    const real k_zeta =
+        0.25 * (sv(i, j, k + 1, it) - sv(i, j, k - 1, it) + sv(i + 1, j, k + 1, it) - sv(i + 1, j, k - 1, it));
 
-        const real k_xi = sv(i + 1, j, k, it) - sv(i, j, k, it);
-        const real k_eta =
-            0.25 * (sv(i, j + 1, k, it) - sv(i, j - 1, k, it) + sv(i + 1, j + 1, k, it) - sv(i + 1, j - 1, k, it));
-        const real k_zeta =
-            0.25 * (sv(i, j, k + 1, it) - sv(i, j, k - 1, it) + sv(i + 1, j, k + 1, it) - sv(i + 1, j, k - 1, it));
+    const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
+    const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
+    const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
 
-        const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
-        const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
-        const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
+    const real omega_xi = sv(i + 1, j, k, it + 1) - sv(i, j, k, it + 1);
+    const real omega_eta = 0.25 * (sv(i, j + 1, k, it + 1) - sv(i, j - 1, k, it + 1) + sv(i + 1, j + 1, k, it + 1) -
+                                   sv(i + 1, j - 1, k, it + 1));
+    const real omega_zeta = 0.25 *
+                            (sv(i, j, k + 1, it + 1) - sv(i, j, k - 1, it + 1) + sv(i + 1, j, k + 1, it + 1) -
+                             sv(i + 1, j, k - 1, it + 1));
 
-        const real omega_xi = sv(i + 1, j, k, it + 1) - sv(i, j, k, it + 1);
-        const real omega_eta = 0.25 * (sv(i, j + 1, k, it + 1) - sv(i, j - 1, k, it + 1) + sv(i + 1, j + 1, k, it + 1) -
-                                       sv(i + 1, j - 1, k, it + 1));
-        const real omega_zeta = 0.25 *
-                                (sv(i, j, k + 1, it + 1) - sv(i, j, k - 1, it + 1) + sv(i + 1, j, k + 1, it + 1) -
-                                 sv(i + 1, j, k - 1, it + 1));
+    const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
+    const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
+    const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
 
-        const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
-        const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
-        const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
+    const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i + 1, j, k));
 
-        const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i + 1, j, k));
+    real f1{1};
+    if (wall_dist > 1e-25) {
+      const real km = 0.5 * (sv(i, j, k, it) + sv(i + 1, j, k, it));
+      const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i + 1, j, k, it + 1));
+      const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
 
-        real f1{1};
-        if (wall_dist > 1e-25) {
-          const real km = 0.5 * (sv(i, j, k, it) + sv(i + 1, j, k, it));
-          const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i + 1, j, k, it + 1));
-          const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
+      const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i + 1, j, k, 0));
+      const real d2 = wall_dist * wall_dist;
+      const real param2{500 * mul / (rhom * d2 * omegam)};
+      const real CDkomega{max(1e-20, 2 * rhom * cfd::SST::sigma_omega2 / omegam *
+                                     (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
+      const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
 
-          const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i + 1, j, k, 0));
-          const real d2 = wall_dist * wall_dist;
-          const real param2{500 * mul / (rhom * d2 * omegam)};
-          const real CDkomega{max(1e-20, 2 * rhom * cfd::SST::sigma_omega2 / omegam *
-                                         (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
-          const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
-
-          const real arg1{min(max(param1, param2), param3)};
-          f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
-        }
-
-        const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
-        const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
-
-        const integer i_turb_cv{param->i_turb_cv};
-        fv[i_turb_cv] = (mul + mut * sigma_k) * (xi_x_div_jac * k_x + xi_y_div_jac * k_y + xi_z_div_jac * k_z);
-        fv[i_turb_cv + 1] =
-            (mul + mut * sigma_omega) * (xi_x_div_jac * omega_x + xi_y_div_jac * omega_y + xi_z_div_jac * omega_z);
+      const real arg1{min(max(param1, param2), param3)};
+      f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
     }
+
+    const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
+    const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
+
+    const integer i_turb_cv{param->i_turb_cv};
+    fv[i_turb_cv] = (mul + mut * sigma_k) * (xi_x_div_jac * k_x + xi_y_div_jac * k_y + xi_z_div_jac * k_z);
+    fv[i_turb_cv + 1] =
+        (mul + mut * sigma_omega) * (xi_x_div_jac * omega_x + xi_y_div_jac * omega_y + xi_z_div_jac * omega_z);
   }
 
   if constexpr (mix_model == MixtureModel::FL) {
@@ -276,7 +265,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
     const real rhoD{mul / param->Sc + mut / param->Sct};
     fv[i_fl_cv] = rhoD * (xi_x_div_jac * mixFrac_x + xi_y_div_jac * mixFrac_y + xi_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (TurbMethod<turb_method>::type==TurbulentSimulationMethod::RANS) {
       // For RANS / DES, we also solve the mixture fraction variance eqn.
       const real mixFracVar_xi = sv(i + 1, j, k, i_fl + 1) - pv(i, j, k, i_fl + 1);
       const real mixFracVar_eta = 0.25 * (sv(i, j + 1, k, i_fl + 1) - sv(i, j - 1, k, i_fl + 1) +
@@ -294,7 +283,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, cfd::DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -342,7 +331,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i, j + 1, k));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i, j + 1, k));
   }
   const real viscosity = mul + mut;
@@ -355,15 +344,13 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
 
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (param->rans_model == 2) {
-      // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                   pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec));
-      tau_xx += twoThirdrhoKm;
-      tau_yy += twoThirdrhoKm;
-      tau_zz += twoThirdrhoKm;
-    }
+  if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+    // SST
+    const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                 pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec));
+    tau_xx += twoThirdrhoKm;
+    tau_yy += twoThirdrhoKm;
+    tau_zz += twoThirdrhoKm;
   }
 
   const real eta_x_div_jac = 0.5 * (m(2, 1) * zone->jac(i, j, k) + m1(2, 1) * zone->jac(i, j + 1, k));
@@ -382,7 +369,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i, j + 1, k));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i, j + 1, k));
   }
 
@@ -397,7 +384,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (TurbMethod<turb_method>::hasMut) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -471,66 +458,57 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
-    const integer rans_model{param->rans_model};
+  if constexpr (TurbMethod<turb_method>::label==TurbMethodLabel::SST) {
+    const integer it = param->n_spec;
+    auto &sv = zone->sv;
 
-    switch (rans_model) {
-      case 1: // SA
-        break;
-      case 2: // SST
-      default:
-        // Default SST
-        const integer it = param->n_spec;
-        auto &sv = zone->sv;
+    const real k_xi =
+        0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j + 1, k, it) - sv(i - 1, j + 1, k, it));
+    const real k_eta = sv(i, j + 1, k, it) - sv(i, j, k, it);
+    const real k_zeta =
+        0.25 * (sv(i, j, k + 1, it) - sv(i, j, k - 1, it) + sv(i, j + 1, k + 1, it) - sv(i, j + 1, k - 1, it));
 
-        const real k_xi =
-            0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j + 1, k, it) - sv(i - 1, j + 1, k, it));
-        const real k_eta = sv(i, j + 1, k, it) - sv(i, j, k, it);
-        const real k_zeta =
-            0.25 * (sv(i, j, k + 1, it) - sv(i, j, k - 1, it) + sv(i, j + 1, k + 1, it) - sv(i, j + 1, k - 1, it));
+    const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
+    const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
+    const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
 
-        const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
-        const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
-        const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
+    const real omega_xi = 0.25 * (sv(i + 1, j, k, it + 1) - sv(i - 1, j, k, it + 1) + sv(i + 1, j + 1, k, it + 1) -
+                                  sv(i - 1, j + 1, k, it + 1));
+    const real omega_eta = sv(i, j + 1, k, it + 1) - sv(i, j, k, it + 1);
+    const real omega_zeta = 0.25 *
+                            (sv(i, j, k + 1, it + 1) - sv(i, j, k - 1, it + 1) + sv(i, j + 1, k + 1, it + 1) -
+                             sv(i, j + 1, k - 1, it + 1));
 
-        const real omega_xi = 0.25 * (sv(i + 1, j, k, it + 1) - sv(i - 1, j, k, it + 1) + sv(i + 1, j + 1, k, it + 1) -
-                                      sv(i - 1, j + 1, k, it + 1));
-        const real omega_eta = sv(i, j + 1, k, it + 1) - sv(i, j, k, it + 1);
-        const real omega_zeta = 0.25 *
-                                (sv(i, j, k + 1, it + 1) - sv(i, j, k - 1, it + 1) + sv(i, j + 1, k + 1, it + 1) -
-                                 sv(i, j + 1, k - 1, it + 1));
+    const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
+    const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
+    const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
 
-        const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
-        const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
-        const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
+    const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j + 1, k));
 
-        const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j + 1, k));
+    real f1{1};
+    if (wall_dist > 1e-25) {
+      const real km = 0.5 * (sv(i, j, k, it) + sv(i, j + 1, k, it));
+      const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i, j + 1, k, it + 1));
+      const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
 
-        real f1{1};
-        if (wall_dist > 1e-25) {
-          const real km = 0.5 * (sv(i, j, k, it) + sv(i, j + 1, k, it));
-          const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i, j + 1, k, it + 1));
-          const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
+      const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i, j + 1, k, 0));
+      const real d2 = wall_dist * wall_dist;
+      const real param2{500 * mul / (rhom * d2 * omegam)};
+      const real CDkomega{max(1e-20, 2 * rhom * SST::sigma_omega2 / omegam *
+                                     (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
+      const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
 
-          const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i, j + 1, k, 0));
-          const real d2 = wall_dist * wall_dist;
-          const real param2{500 * mul / (rhom * d2 * omegam)};
-          const real CDkomega{max(1e-20, 2 * rhom * SST::sigma_omega2 / omegam *
-                                         (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
-          const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
-
-          const real arg1{min(max(param1, param2), param3)};
-          f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
-        }
-
-        const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
-        const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
-
-        const integer i_turb_cv{param->i_turb_cv};
-        gv[i_turb_cv] = (mul + mut * sigma_k) * (eta_x_div_jac * k_x + eta_y_div_jac * k_y + eta_z_div_jac * k_z);
-        gv[i_turb_cv + 1] =
-            (mul + mut * sigma_omega) * (eta_x_div_jac * omega_x + eta_y_div_jac * omega_y + eta_z_div_jac * omega_z);
+      const real arg1{min(max(param1, param2), param3)};
+      f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
     }
+
+    const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
+    const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
+
+    const integer i_turb_cv{param->i_turb_cv};
+    gv[i_turb_cv] = (mul + mut * sigma_k) * (eta_x_div_jac * k_x + eta_y_div_jac * k_y + eta_z_div_jac * k_z);
+    gv[i_turb_cv + 1] =
+        (mul + mut * sigma_omega) * (eta_x_div_jac * omega_x + eta_y_div_jac * omega_y + eta_z_div_jac * omega_z);
   }
 
   if constexpr (mix_model == MixtureModel::FL) {
@@ -552,7 +530,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
     const real rhoD{mul / param->Sc + mut / param->Sct};
     gv[i_fl_cv] = rhoD * (eta_x_div_jac * mixFrac_x + eta_y_div_jac * mixFrac_y + eta_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (TurbMethod<turb_method>::type==TurbulentSimulationMethod::RANS) {
       // For LES, we do not need to compute the variance of mixture fraction.
       const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
                                          sv(i + 1, j + 1, k, i_fl + 1) - sv(i - 1, j + 1, k, i_fl + 1));
@@ -570,7 +548,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
   }
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, cfd::DParameter *param) {
   const auto i = idx[0], j = idx[1], k = idx[2];
   const auto &m = zone->metric(i, j, k);
@@ -614,7 +592,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
 
   const real mul = 0.5 * (zone->mul(i, j, k) + zone->mul(i, j, k + 1));
   real mut{0};
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     mut = 0.5 * (zone->mut(i, j, k) + zone->mut(i, j, k + 1));
   }
   const real viscosity = mul + mut;
@@ -627,15 +605,13 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   const real tau_xz = viscosity * (u_z + w_x);
   const real tau_yz = viscosity * (v_z + w_y);
 
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (param->rans_model == 2) {
-      // SST
-      const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                   pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec));
-      tau_xx += twoThirdrhoKm;
-      tau_yy += twoThirdrhoKm;
-      tau_zz += twoThirdrhoKm;
-    }
+  if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
+    // SST
+    const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
+                                                 pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec));
+    tau_xx += twoThirdrhoKm;
+    tau_yy += twoThirdrhoKm;
+    tau_zz += twoThirdrhoKm;
   }
 
   const real zeta_x_div_jac = 0.5 * (m(3, 1) * zone->jac(i, j, k) + m1(3, 1) * zone->jac(i, j, k + 1));
@@ -654,7 +630,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
   const real t_y = t_xi * xi_y + t_eta * eta_y + t_zeta * zeta_y;
   const real t_z = t_xi * xi_z + t_eta * eta_z + t_zeta * zeta_z;
   real conductivity = 0.5 * (zone->thermal_conductivity(i, j, k) + zone->thermal_conductivity(i, j, k + 1));
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     conductivity += 0.5 * (zone->turb_therm_cond(i, j, k) + zone->turb_therm_cond(i, j, k + 1));
   }
 
@@ -669,7 +645,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     const auto &y = zone->sv;
 
     real turb_diffusivity{0};
-    if constexpr (turb_method == TurbMethod::RANS) {
+    if constexpr (TurbMethod<turb_method>::hasMut) {
       turb_diffusivity = mut / param->Sct;
     }
 
@@ -743,65 +719,56 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     }
   }
 
-  if constexpr (turb_method == TurbMethod::RANS) {
-    const integer rans_model{param->rans_model};
+  if constexpr (TurbMethod<turb_method>::label==TurbMethodLabel::SST) {
+    const integer it = param->n_spec;
+    auto &sv = zone->sv;
+    const real k_xi =
+        0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j, k + 1, it) - sv(i - 1, j, k + 1, it));
+    const real k_eta =
+        0.25 * (sv(i, j + 1, k, it) - sv(i, j - 1, k, it) + sv(i, j + 1, k + 1, it) - sv(i, j - 1, k + 1, it));
+    const real k_zeta = sv(i, j, k + 1, it) - sv(i, j, k, it);
 
-    switch (rans_model) {
-      case 1: // SA
-        break;
-      case 2: // SST
-      default:
-        // Default SST
-        const integer it = param->n_spec;
-        auto &sv = zone->sv;
-        const real k_xi =
-            0.25 * (sv(i + 1, j, k, it) - sv(i - 1, j, k, it) + sv(i + 1, j, k + 1, it) - sv(i - 1, j, k + 1, it));
-        const real k_eta =
-            0.25 * (sv(i, j + 1, k, it) - sv(i, j - 1, k, it) + sv(i, j + 1, k + 1, it) - sv(i, j - 1, k + 1, it));
-        const real k_zeta = sv(i, j, k + 1, it) - sv(i, j, k, it);
+    const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
+    const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
+    const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
 
-        const real k_x = k_xi * xi_x + k_eta * eta_x + k_zeta * zeta_x;
-        const real k_y = k_xi * xi_y + k_eta * eta_y + k_zeta * zeta_y;
-        const real k_z = k_xi * xi_z + k_eta * eta_z + k_zeta * zeta_z;
+    const real omega_xi = 0.25 * (sv(i + 1, j, k, it + 1) - sv(i - 1, j, k, it + 1) + sv(i + 1, j, k + 1, it + 1) -
+                                  sv(i - 1, j, k + 1, it + 1));
+    const real omega_eta = 0.25 * (sv(i, j + 1, k, it + 1) - sv(i, j - 1, k, it + 1) + sv(i, j + 1, k + 1, it + 1) -
+                                   sv(i, j - 1, k + 1, it + 1));
+    const real omega_zeta = sv(i, j, k + 1, it + 1) - sv(i, j, k, it + 1);
 
-        const real omega_xi = 0.25 * (sv(i + 1, j, k, it + 1) - sv(i - 1, j, k, it + 1) + sv(i + 1, j, k + 1, it + 1) -
-                                      sv(i - 1, j, k + 1, it + 1));
-        const real omega_eta = 0.25 * (sv(i, j + 1, k, it + 1) - sv(i, j - 1, k, it + 1) + sv(i, j + 1, k + 1, it + 1) -
-                                       sv(i, j - 1, k + 1, it + 1));
-        const real omega_zeta = sv(i, j, k + 1, it + 1) - sv(i, j, k, it + 1);
+    const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
+    const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
+    const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
 
-        const real omega_x = omega_xi * xi_x + omega_eta * eta_x + omega_zeta * zeta_x;
-        const real omega_y = omega_xi * xi_y + omega_eta * eta_y + omega_zeta * zeta_y;
-        const real omega_z = omega_xi * xi_z + omega_eta * eta_z + omega_zeta * zeta_z;
+    const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j, k + 1));
 
-        const real wall_dist = 0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j, k + 1));
+    real f1{1};
+    if (wall_dist > 1e-25) {
+      const real km = 0.5 * (sv(i, j, k, it) + sv(i, j, k + 1, it));
+      const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i, j, k + 1, it + 1));
+      const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
 
-        real f1{1};
-        if (wall_dist > 1e-25) {
-          const real km = 0.5 * (sv(i, j, k, it) + sv(i, j, k + 1, it));
-          const real omegam = 0.5 * (sv(i, j, k, it + 1) + sv(i, j, k + 1, it + 1));
-          const real param1{std::sqrt(km) / (0.09 * omegam * wall_dist)};
+      const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i, j, k + 1, 0));
+      const real d2 = wall_dist * wall_dist;
+      const real param2{500 * mul / (rhom * d2 * omegam)};
+      const real CDkomega{max(1e-20, 2 * rhom * SST::sigma_omega2 / omegam *
+                                     (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
+      const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
 
-          const real rhom = 0.5 * (pv(i, j, k, 0) + pv(i, j, k + 1, 0));
-          const real d2 = wall_dist * wall_dist;
-          const real param2{500 * mul / (rhom * d2 * omegam)};
-          const real CDkomega{max(1e-20, 2 * rhom * SST::sigma_omega2 / omegam *
-                                         (k_x * omega_x + k_y * omega_y + k_z * omega_z))};
-          const real param3{4 * rhom * SST::sigma_omega2 * km / (CDkomega * d2)};
-
-          const real arg1{min(max(param1, param2), param3)};
-          f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
-        }
-
-        const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
-        const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
-
-        const integer i_turb_cv{param->i_turb_cv};
-        hv[i_turb_cv] = (mul + mut * sigma_k) * (zeta_x_div_jac * k_x + zeta_y_div_jac * k_y + zeta_z_div_jac * k_z);
-        hv[i_turb_cv + 1] =
-            (mul + mut * sigma_omega) *
-            (zeta_x_div_jac * omega_x + zeta_y_div_jac * omega_y + zeta_z_div_jac * omega_z);
+      const real arg1{min(max(param1, param2), param3)};
+      f1 = std::tanh(arg1 * arg1 * arg1 * arg1);
     }
+
+    const real sigma_k = SST::sigma_k2 + SST::delta_sigma_k * f1;
+    const real sigma_omega = SST::sigma_omega2 + SST::delta_sigma_omega * f1;
+
+    const integer i_turb_cv{param->i_turb_cv};
+    hv[i_turb_cv] = (mul + mut * sigma_k) * (zeta_x_div_jac * k_x + zeta_y_div_jac * k_y + zeta_z_div_jac * k_z);
+    hv[i_turb_cv + 1] =
+        (mul + mut * sigma_omega) *
+        (zeta_x_div_jac * omega_x + zeta_y_div_jac * omega_y + zeta_z_div_jac * omega_z);
   }
 
   if constexpr (mix_model == MixtureModel::FL) {
@@ -823,7 +790,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
     const real rhoD{mul / param->Sc + mut / param->Sct};
     hv[i_fl_cv] = rhoD * (zeta_x_div_jac * mixFrac_x + zeta_y_div_jac * mixFrac_y + zeta_z_div_jac * mixFrac_z);
 
-    if constexpr (turb_method != TurbMethod::LES) {
+    if constexpr (TurbMethod<turb_method>::type==TurbulentSimulationMethod::RANS) {
       // For LES, we do not need to compute the variance of mixture fraction.
       const real mixFracVar_xi = 0.25 * (sv(i + 1, j, k, i_fl + 1) - sv(i - 1, j, k, i_fl + 1) +
                                          sv(i + 1, j, k + 1, i_fl + 1) - sv(i - 1, j, k + 1, i_fl + 1));

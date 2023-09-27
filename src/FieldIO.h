@@ -10,7 +10,7 @@
 
 namespace cfd {
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice = OutputTimeChoice::Instance>
 class FieldIO {
   const int myid{0};
   const Mesh &mesh;
@@ -40,8 +40,8 @@ private:
   int32_t acquire_variable_names(std::vector<std::string> &var_name) const;
 };
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
-FieldIO<mix_model, turb_method, output_time_choice>::FieldIO(integer _myid, const Mesh &_mesh,
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
+FieldIO<mix_model, turb, output_time_choice>::FieldIO(integer _myid, const Mesh &_mesh,
                                                              std::vector<Field> &_field, const Parameter &_parameter,
                                                              const Species &spec, int ngg_out):
     myid{_myid}, mesh{_mesh}, field(_field), parameter{_parameter}, species{spec}, ngg_output{ngg_out} {
@@ -54,8 +54,8 @@ FieldIO<mix_model, turb_method, output_time_choice>::FieldIO(integer _myid, cons
   write_common_data_section();
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
-void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
+void FieldIO<mix_model, turb, output_time_choice>::write_header() {
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
   // Question: Should I use MPI_MODE_CREATE only here?
@@ -172,8 +172,8 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_header() {
   MPI_File_close(&fp);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
-void FieldIO<mix_model, turb_method, output_time_choice>::compute_offset_header() {
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
+void FieldIO<mix_model, turb, output_time_choice>::compute_offset_header() {
   MPI_Offset new_offset{0};
   integer i_blk{0};
   for (int p = 0; p < myid; ++p) {
@@ -191,8 +191,8 @@ void FieldIO<mix_model, turb_method, output_time_choice>::compute_offset_header(
   offset_header += new_offset;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
-void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_section() {
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
+void FieldIO<mix_model, turb, output_time_choice>::write_common_data_section() {
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
   MPI_File_open(MPI_COMM_WORLD, (out_dir.string() + "/flowfield.plt").c_str(), MPI_MODE_WRONLY,
@@ -326,7 +326,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_sect
       offset += 8;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (TurbMethod<turb>::hasMut) {
       min_val = v.ov(-ngg, -ngg, -ngg, 1);
       max_val = v.ov(-ngg, -ngg, -ngg, 1);
       for (int k = -ngg; k < mz + ngg; ++k) {
@@ -373,7 +373,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_sect
       offset += memsz;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (TurbMethod<turb>::hasMut) {
       var = v.ov[1];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;
@@ -384,9 +384,9 @@ void FieldIO<mix_model, turb_method, output_time_choice>::write_common_data_sect
   MPI_File_close(&fp);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
 int32_t
-FieldIO<mix_model, turb_method, output_time_choice>::acquire_variable_names(std::vector<std::string> &var_name) const {
+FieldIO<mix_model, turb, output_time_choice>::acquire_variable_names(std::vector<std::string> &var_name) const {
   int32_t nv = 3 + 7; // x,y,z + rho,u,v,w,p,T,Mach
   if constexpr (mix_model != MixtureModel::Air) {
     nv += parameter.get_int("n_spec"); // Y_k
@@ -396,29 +396,27 @@ FieldIO<mix_model, turb_method, output_time_choice>::acquire_variable_names(std:
       var_name[ind + 10] = name;
     }
   }
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (integer rans_method = parameter.get_int("RANS_model"); rans_method == 1) {
-      nv += 1; // SA variable?
-    } else if (rans_method == 2) {
-      nv += 2; // k, omega
-      var_name.emplace_back("tke");
-      var_name.emplace_back("omega");
-    }
+  if constexpr (TurbMethod<turb>::label==TurbMethodLabel::SA) {
+    nv += 1; // SA variable?
+  } else if constexpr (TurbMethod<turb>::label==TurbMethodLabel::SST){
+    nv += 2; // k, omega
+    var_name.emplace_back("tke");
+    var_name.emplace_back("omega");
   }
   if constexpr (mix_model == MixtureModel::FL) {
     nv += 2; // Z, Z_prime
     var_name.emplace_back("MixtureFraction");
     var_name.emplace_back("MixtureFractionVariance");
   }
-  if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+  if constexpr (TurbMethod<turb>::hasMut) {
     nv += 1; // mu_t
     var_name.emplace_back("mut");
   }
   return nv;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method, OutputTimeChoice output_time_choice>
-void FieldIO<mix_model, turb_method, output_time_choice>::print_field(integer step) const {
+template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
+void FieldIO<mix_model, turb, output_time_choice>::print_field(integer step) const {
   if (myid == 0) {
     std::ofstream file("output/message/step.txt");
     file << step;
@@ -495,7 +493,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::print_field(integer st
       offset += 8;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (TurbMethod<turb>::hasMut) {
       min_val = v.ov(-ngg, -ngg, -ngg, 1);
       max_val = v.ov(-ngg, -ngg, -ngg, 1);
       for (int k = -ngg; k < mz + ngg; ++k) {
@@ -536,7 +534,7 @@ void FieldIO<mix_model, turb_method, output_time_choice>::print_field(integer st
       offset += memsz;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (TurbMethod<turb>::hasMut) {
       var = v.ov[1];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;

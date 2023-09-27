@@ -4,7 +4,7 @@
 //#include "FlameletLib.cuh"
 //
 //namespace cfd{
-////template<TurbMethod turb_method>
+////template<TurbulenceMethod turb_method>
 ////struct Driver<MixtureModel::FL, turb_method>{
 ////  Driver(Parameter &parameter, Mesh &mesh_);
 ////
@@ -24,5 +24,5 @@
 ////  std::array<real, 4> res_scale{1, 1, 1, 1};
 ////};
 //
-////extern template<> struct Driver<MixtureModel::FL, TurbMethod::RANS>;
+////extern template<> struct Driver<MixtureModel::FL, TurbulenceMethod::RANS>;
 //}

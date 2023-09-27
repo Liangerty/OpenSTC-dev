@@ -13,7 +13,7 @@ namespace cfd {
 class Mesh;
 
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 class Output {
 public:
   const int myid{0};
@@ -32,7 +32,7 @@ public:
   ~Output() = default;
 };
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 int32_t Output<mix_model, turb_method>::acquire_variable_names(std::vector<std::string> &var_name) const {
   int32_t n_var = 3 + 7; // x,y,z + rho,u,v,w,p,T,Mach
   if constexpr (mix_model != MixtureModel::Air) {
@@ -43,7 +43,7 @@ int32_t Output<mix_model, turb_method>::acquire_variable_names(std::vector<std::
       var_name[ind + 10] = name;
     }
   }
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (integer rans_method = parameter.get_int("RANS_model"); rans_method == 1) {
       n_var += 1; // SA variable?
     } else if (rans_method == 2) {
@@ -57,14 +57,14 @@ int32_t Output<mix_model, turb_method>::acquire_variable_names(std::vector<std::
     var_name.emplace_back("z");
     var_name.emplace_back("z prime");
   }
-  if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+  if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
     n_var += 1; // mu_t
     var_name.emplace_back("mut");
   }
   return n_var;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void Output<mix_model, turb_method>::print_field(integer step, int ngg) const {
   // Copy data from GPU to CPU
   for (auto &f: field) {
@@ -264,7 +264,7 @@ void Output<mix_model, turb_method>::print_field(integer step, int ngg) const {
       fwrite(&s_max[l], 8, 1, fp);
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       min_val[0] = v.ov(-ngg, -ngg, -ngg, 1);
       max_val[0] = v.ov(-ngg, -ngg, -ngg, 1);
       for (int k = -ngg; k < mz + ngg; ++k) {
@@ -319,7 +319,7 @@ void Output<mix_model, turb_method>::print_field(integer step, int ngg) const {
       }
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       for (int k = -ngg; k < mz + ngg; ++k) {
         for (int j = -ngg; j < my + ngg; ++j) {
           for (int i = -ngg; i < mx + ngg; ++i) {
@@ -334,7 +334,7 @@ void Output<mix_model, turb_method>::print_field(integer step, int ngg) const {
 }
 
 // Implementations
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 Output<mix_model, turb_method>::Output(integer _myid, const cfd::Mesh &_mesh, std::vector<Field> &_field,
                                        const cfd::Parameter &_parameter, const cfd::Species &spec):
     myid{_myid}, mesh{_mesh}, field(_field), parameter{_parameter}, species{spec} {

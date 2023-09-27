@@ -5,12 +5,12 @@
 #include "SteadySim.cuh"
 
 namespace cfd{
-template<MixtureModel mix_model, TurbMethod turb_method>
-void simulate(Driver<mix_model, turb_method> &driver){
+template<MixtureModel mix_model, class turb>
+void simulate(Driver<mix_model, turb> &driver){
   const auto& parameter{driver.parameter};
   const auto steady{parameter.get_bool("steady")};
   if (steady) {
-    steady_simulation<mix_model, turb_method>(driver);
+    steady_simulation<mix_model, turb>(driver);
   } else {
     const auto temporal_tag{parameter.get_int("temporal_scheme")};
     switch (temporal_tag) {

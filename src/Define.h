@@ -11,7 +11,7 @@ using integer = int;
 using real = double;
 using uint = unsigned int;
 
-enum class TurbMethod{
+enum class TurbulenceMethod{
   Laminar,
   RANS,
   LES,

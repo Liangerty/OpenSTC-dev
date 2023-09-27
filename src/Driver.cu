@@ -7,8 +7,8 @@
 
 namespace cfd {
 
-template<MixtureModel mix_model, TurbMethod turb_method>
-Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
+template<MixtureModel mix_model, class turb>
+Driver<mix_model, turb>::Driver(Parameter &parameter, Mesh &mesh_):
     myid(parameter.get_int("myid")), time(), mesh(mesh_), parameter(parameter),
     spec(parameter), reac(parameter, spec) {
   // Allocate the memory for every block
@@ -16,7 +16,7 @@ Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
     field.emplace_back(parameter, mesh[blk]);
   }
 
-  initialize_basic_variables<mix_model, turb_method>(parameter, mesh, field, spec);
+  initialize_basic_variables<mix_model, turb>(parameter, mesh, field, spec);
 
   if (parameter.get_int("initial") == 1) {
     // If continue from previous results, then we need the residual scales
@@ -37,8 +37,8 @@ Driver<mix_model, turb_method>::Driver(Parameter &parameter, Mesh &mesh_):
   write_reference_state(parameter);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
-void Driver<mix_model, turb_method>::initialize_computation() {
+template<MixtureModel mix_model, class turb>
+void Driver<mix_model, turb>::initialize_computation() {
   dim3 tpb{8, 8, 4};
   if (mesh.dimension == 2) {
     tpb = {16, 16, 1};
@@ -46,11 +46,9 @@ void Driver<mix_model, turb_method>::initialize_computation() {
   const auto ng_1 = 2 * mesh[0].ngg - 1;
 
   // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
-  if constexpr (turb_method == TurbMethod::RANS) {
-    if (parameter.get_int("RANS_model") == 2) {
-      // SST method
-      acquire_wall_distance<mix_model, turb_method>(*this);
-    }
+  if constexpr (TurbMethod<turb>::needWallDistance == true) {
+    // SST method
+    acquire_wall_distance<mix_model, turb>(*this);
   }
 
   if (mesh.dimension == 2) {
@@ -63,7 +61,7 @@ void Driver<mix_model, turb_method>::initialize_computation() {
 
   // Second, apply boundary conditions to all boundaries, including face communication between faces
   for (integer b = 0; b < mesh.n_block; ++b) {
-    bound_cond.apply_boundary_conditions<mix_model, turb_method>(mesh[b], field[b], param);
+    bound_cond.apply_boundary_conditions<mix_model, turb>(mesh[b], field[b], param);
   }
   if (myid == 0) {
     printf("Boundary conditions are applied successfully for initialization\n");
@@ -74,15 +72,14 @@ void Driver<mix_model, turb_method>::initialize_computation() {
   for (auto i = 0; i < mesh.n_block; ++i) {
     integer mx{mesh[i].mx}, my{mesh[i].my}, mz{mesh[i].mz};
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-    compute_velocity<mix_model, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
-    if constexpr (turb_method == TurbMethod::RANS) {
-      // We need the wall distance here. And the mut are computed for bc
-      initialize_mut<mix_model><<<bpg, tpb >>>(field[i].d_ptr, param);
+    compute_velocity<<<bpg, tpb>>>(field[i].d_ptr);
+    if constexpr (TurbMethod<turb>::hasMut == true) {
+      initialize_mut<mix_model, turb><<<bpg, tpb >>>(field[i].d_ptr, param);
     }
   }
   cudaDeviceSynchronize();
   // Third, communicate values between processes
-  data_communication<mix_model, turb_method>(mesh, field, parameter, 0, param);
+  data_communication(mesh, field, parameter, 0, param);
 
   if (myid == 0) {
     printf("Finish data transfer.\n");
@@ -92,7 +89,7 @@ void Driver<mix_model, turb_method>::initialize_computation() {
   for (auto b = 0; b < mesh.n_block; ++b) {
     integer mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
-    update_physical_properties<mix_model, turb_method><<<bpg, tpb>>>(field[b].d_ptr, param);
+    update_physical_properties<mix_model><<<bpg, tpb>>>(field[b].d_ptr, param);
   }
   cudaDeviceSynchronize();
   if (myid == 0) {
@@ -141,16 +138,16 @@ void write_reference_state(const Parameter &parameter) {
 
 // Instantiate all possible drivers
 template
-struct Driver<MixtureModel::Air, TurbMethod::Laminar>;
+struct Driver<MixtureModel::Air, Laminar>;
 template
-struct Driver<MixtureModel::Air, TurbMethod::RANS>;
+struct Driver<MixtureModel::Air, SST>;
 template
-struct Driver<MixtureModel::Mixture, TurbMethod::Laminar>;
+struct Driver<MixtureModel::Mixture, Laminar>;
 template
-struct Driver<MixtureModel::Mixture, TurbMethod::RANS>;
+struct Driver<MixtureModel::Mixture, SST>;
 template
-struct Driver<MixtureModel::FR, TurbMethod::Laminar>;
+struct Driver<MixtureModel::FR, Laminar>;
 template
-struct Driver<MixtureModel::FR, TurbMethod::RANS>;
+struct Driver<MixtureModel::FR, SST>;
 
 } // cfd

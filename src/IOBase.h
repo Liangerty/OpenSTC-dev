@@ -3,6 +3,6 @@
 #include "Define.h"
 
 namespace cfd{
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 struct IOBase{};
 }

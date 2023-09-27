@@ -1,7 +1,7 @@
 // If the solver solves multispecies equations or basic equations.
 // If species are involved, how many? Is there any reaction involved?
 bool species = 1       //If there is species involved.
-int reaction = 2     //0-No reaction; 1-Finite rate chemistry; 2-Flamelet model. Even no reactions are involved, the mechanism file should exit to clarify the species
+int reaction = 1     //0-No reaction; 1-Finite rate chemistry; 2-Flamelet model. Even no reactions are involved, the mechanism file should exit to clarify the species
 string mechanism_file = chemistry/H2_mech.inp
 string therm_file = chemistry/therm.dat
 string transport_file = chemistry/tran.dat

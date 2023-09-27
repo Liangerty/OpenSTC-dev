@@ -13,7 +13,7 @@ void write_str(const char *str, MPI_File &file, MPI_Offset &offset);
 
 void write_str_without_null(const char *str, MPI_File &file, MPI_Offset &offset);
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 class MPIIO {
   const int myid{0};
   const Mesh &mesh;
@@ -42,7 +42,7 @@ private:
   int32_t acquire_variable_names(std::vector<std::string> &var_name) const;
 };
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 MPIIO<mix_model, turb_method>::MPIIO(integer _myid, const cfd::Mesh &_mesh, std::vector<Field> &_field,
                                      const cfd::Parameter &_parameter, const cfd::Species &spec,
                                      int ngg_out):
@@ -56,7 +56,7 @@ MPIIO<mix_model, turb_method>::MPIIO(integer _myid, const cfd::Mesh &_mesh, std:
   write_common_data_section();
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void MPIIO<mix_model, turb_method>::write_header() {
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
@@ -173,7 +173,7 @@ void MPIIO<mix_model, turb_method>::write_header() {
   MPI_File_close(&fp);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void MPIIO<mix_model, turb_method>::compute_offset_header() {
   MPI_Offset new_offset{0};
   integer i_blk{0};
@@ -192,7 +192,7 @@ void MPIIO<mix_model, turb_method>::compute_offset_header() {
   offset_header += new_offset;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void MPIIO<mix_model, turb_method>::write_common_data_section() {
   const std::filesystem::path out_dir("output/field");
   MPI_File fp;
@@ -327,7 +327,7 @@ void MPIIO<mix_model, turb_method>::write_common_data_section() {
       offset += 8;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       min_val = v.ov(-ngg, -ngg, -ngg, 1);
       max_val = v.ov(-ngg, -ngg, -ngg, 1);
       for (int k = -ngg; k < mz + ngg; ++k) {
@@ -374,7 +374,7 @@ void MPIIO<mix_model, turb_method>::write_common_data_section() {
       offset += memsz;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       var = v.ov[1];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;
@@ -385,7 +385,7 @@ void MPIIO<mix_model, turb_method>::write_common_data_section() {
   MPI_File_close(&fp);
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 int32_t MPIIO<mix_model, turb_method>::acquire_variable_names(std::vector<std::string> &var_name) const {
   int32_t nv = 3 + 7; // x,y,z + rho,u,v,w,p,T,Mach
   if constexpr (mix_model != MixtureModel::Air) {
@@ -396,7 +396,7 @@ int32_t MPIIO<mix_model, turb_method>::acquire_variable_names(std::vector<std::s
       var_name[ind + 10] = name;
     }
   }
-  if constexpr (turb_method == TurbMethod::RANS) {
+  if constexpr (turb_method == TurbulenceMethod::RANS) {
     if (integer rans_method = parameter.get_int("RANS_model"); rans_method == 1) {
       nv += 1; // SA variable?
     } else if (rans_method == 2) {
@@ -410,14 +410,14 @@ int32_t MPIIO<mix_model, turb_method>::acquire_variable_names(std::vector<std::s
     var_name.emplace_back("z");
     var_name.emplace_back("z prime");
   }
-  if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+  if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
     nv += 1; // mu_t
     var_name.emplace_back("mut");
   }
   return nv;
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, TurbulenceMethod turb_method>
 void MPIIO<mix_model, turb_method>::print_field(integer step) const {
   if (myid == 0) {
     std::ofstream file("output/message/step.txt");
@@ -495,7 +495,7 @@ void MPIIO<mix_model, turb_method>::print_field(integer step) const {
       offset += 8;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       min_val = v.ov(-ngg, -ngg, -ngg, 1);
       max_val = v.ov(-ngg, -ngg, -ngg, 1);
       for (int k = -ngg; k < mz + ngg; ++k) {
@@ -536,7 +536,7 @@ void MPIIO<mix_model, turb_method>::print_field(integer step) const {
       offset += memsz;
     }
     // if turbulent, mut
-    if constexpr (turb_method == TurbMethod::RANS || turb_method == TurbMethod::LES) {
+    if constexpr (turb_method == TurbulenceMethod::RANS || turb_method == TurbulenceMethod::LES) {
       var = v.ov[1];
       MPI_File_write_at(fp, offset, var, 1, ty, &status);
       offset += memsz;

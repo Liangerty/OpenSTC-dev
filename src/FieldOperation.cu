@@ -59,3 +59,15 @@ __global__ void cfd::eliminate_k_gradient(cfd::DZone *zone, const DParameter *pa
     }
   }
 }
+
+__global__ void cfd::compute_velocity(cfd::DZone *zone){
+  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my}, mz{zone->mz};
+  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
+  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - ngg;
+  integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - ngg;
+  if (i >= mx + ngg || j >= my + ngg || k >= mz + ngg) return;
+
+  const auto &bv = zone->bv;
+
+  zone->vel(i, j, k) = std::sqrt(bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3));
+}

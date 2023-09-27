@@ -6,6 +6,7 @@
 #     However, the correctness, if the resource is available for the corresponding kernel may need to be tested.
 
 list(APPEND src_file
+  AusmP.cuh
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
   DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
@@ -17,9 +18,9 @@ list(APPEND src_file
   main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
-  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh
+  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh Roe.cuh Roe.cu
   SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh
-  Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu
+  Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu TurbMethod.hpp
   ViscousScheme.cuh
   WallDistance.cuh
 
