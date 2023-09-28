@@ -80,7 +80,7 @@ viscous_flux_fv(cfd::DZone *zone, integer max_extent, cfd::DParameter *param) {
 
   switch (param->viscous_scheme) {
     case 0: // Inviscid computation
-      break;
+      return;
     case 2:
     default: // 2nd order central difference
       compute_fv_2nd_order<mix_model, turb_method>(idx, zone, &fv[tid * n_var], param);

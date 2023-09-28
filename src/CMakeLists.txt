@@ -11,7 +11,7 @@ list(APPEND src_file
   ChemData.h ChemData.cpp Constants.h
   DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
   Element.h Element.cpp
-  Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h
+  Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h FirstOrderEuler.cuh
   FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
   ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
   Limiter.cuh

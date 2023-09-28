@@ -3,6 +3,7 @@
 #include "Driver.cuh"
 #include <cstdio>
 #include "SteadySim.cuh"
+#include "FirstOrderEuler.cuh"
 
 namespace cfd{
 template<MixtureModel mix_model, class turb>
@@ -14,10 +15,13 @@ void simulate(Driver<mix_model, turb> &driver){
   } else {
     const auto temporal_tag{parameter.get_int("temporal_scheme")};
     switch (temporal_tag) {
-      case 11: // For example, if DULUSGS, then add a function to initiate the computation instead of initialize before setting up the scheme as CPU code
+      case 1: // Explicit Euler, only first order time accuracy, should be avoided in most cases.
+        first_order_euler<mix_model, turb>(driver);
         break;
-      case 12:
+      case 2:
+        printf("Not implemented");
         break;
+      case 3:
       default:
         printf("Not implemented");
     }
