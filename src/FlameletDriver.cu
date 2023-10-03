@@ -3,7 +3,6 @@
 #include "Initialize.cuh"
 #include "DataCommunication.cuh"
 #include "WallDistance.cuh"
-#include "SteadySim.cuh"
 
 namespace cfd{
 template<class turb>
