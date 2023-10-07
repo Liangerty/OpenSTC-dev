@@ -27,6 +27,7 @@ list(APPEND src_file
   gxl_lib/Array.hpp
   gxl_lib/MyString.cpp
   gxl_lib/Time.cpp gxl_lib/Time.h
+  gxl_lib/MyAtomic.cuh
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})

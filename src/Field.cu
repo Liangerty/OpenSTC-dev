@@ -131,7 +131,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   cudaMemcpy(h_ptr->metric.data(), block.metric.data(), sizeof(gxl::Matrix<real, 3, 3, 1>) * h_ptr->metric.size(),
              cudaMemcpyHostToDevice);
 
-//  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
+  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
   h_ptr->bv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 6, h_ptr->ngg);
   cudaMemcpy(h_ptr->bv.data(), bv.data(), sizeof(real) * h_ptr->bv.size() * 6, cudaMemcpyHostToDevice);
   h_ptr->bv_last.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 4, 0);

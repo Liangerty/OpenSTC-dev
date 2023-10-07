@@ -2,9 +2,9 @@
 
 #include "Driver.cuh"
 
-namespace cfd{
+namespace cfd {
 template<MixtureModel mix_model, class turb>
-void first_order_euler(Driver<mix_model, turb> &driver){
+void first_order_euler(Driver<mix_model, turb> &driver) {
   auto &parameter{driver.parameter};
   auto &mesh{driver.mesh};
   std::vector<cfd::Field> &field{driver.field};
@@ -35,7 +35,14 @@ void first_order_euler(Driver<mix_model, turb> &driver){
   }
 
   for (auto b = 0; b < n_block; ++b) {
+    // Store the initial value of the flow field
     store_last_step<<<bpg[b], tpb>>>(field[b].d_ptr);
+    // Compute the conservative variables from basic variables
+    // In unsteady simulations, because of the upwind high-order method to be used;
+    // we need the conservative variables.
+    const auto mx{mesh[b].mx}, my{mesh[b].my}, mz{mesh[b].mz};
+    dim3 BPG{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
+    compute_cv_from_bv<mix_model, turb><<<BPG, tpb>>>(field[b].d_ptr, param);
   }
 
   bool finished{false};
@@ -69,6 +76,12 @@ void first_order_euler(Driver<mix_model, turb> &driver){
 
       // compute the local time step
       local_time_step<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+    }
+
+    // After all processes and all blocks computing dt_local, we compute the global time step.
+    const real dt = global_time_step(mesh, parameter, field);
+
+    for (auto b = 0; b < n_block; ++b) {
       // implicit treatment if needed
       implicit_treatment<mix_model, turb>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr);
 

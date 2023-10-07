@@ -17,6 +17,10 @@ __global__ void compute_square_of_dbv(DZone *zone);
 
 template<MixtureModel mixture, class turb_method>
 __global__ void limit_flow(cfd::DZone *zone, cfd::DParameter *param, integer blk_id);
+
+real global_time_step(const Mesh &mesh, const Parameter &parameter, std::vector<cfd::Field> &field);
+
+__global__ void min_of_arr(real *arr, integer size);
 }
 
 template<MixtureModel mixture, class turb_method>
