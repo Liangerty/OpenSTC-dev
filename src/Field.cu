@@ -189,9 +189,9 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
     h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
     h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }
-  if (parameter.get_bool("steady")) { // steady simulation
+//  if (parameter.get_bool("steady")) { // steady simulation
     h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
-  }
+//  }
   if (parameter.get_int("inviscid_scheme") == 2) {
     // Roe scheme
     h_ptr->entropy_fix_delta.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);

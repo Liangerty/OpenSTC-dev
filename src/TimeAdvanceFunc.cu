@@ -46,7 +46,7 @@ real cfd::global_time_step(const Mesh &mesh, const Parameter &parameter, std::ve
     const integer size = mx * my * mz;
     int n_blocks = std::min(num_blocks_per_sm * num_sms, (size + TPB - 1) / TPB);
     min_of_arr<<<n_blocks, TPB>>>(field[b].h_ptr->dt_local.data(), size);//, TPB * sizeof(real)
-    min_of_arr<<<1, TPB>>>(field[b].h_ptr->dt_local.data(), size);//, TPB * sizeof(real)
+    min_of_arr<<<1, TPB>>>(field[b].h_ptr->dt_local.data(), n_blocks);//, TPB * sizeof(real)
     cudaMemcpy(&dt_block, field[b].h_ptr->dt_local.data(), sizeof(real), cudaMemcpyDeviceToHost);
     dt = std::min(dt, dt_block);
   }
@@ -75,7 +75,7 @@ __global__ void cfd::min_of_arr(real *arr, integer size) {
 //  s[t] = inp;
   __syncthreads();
 
-  inp = block_reduce_min(inp, size);
+  inp = block_reduce_min(inp, i, size);
   __syncthreads();
 
 //  for (int stride = blockDim.x / 2, lst = blockDim.x & 1; stride >= 1; lst = stride & 1, stride >>= 1) {

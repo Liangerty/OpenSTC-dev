@@ -30,20 +30,24 @@ __inline__ __device__ double block_reduce_sum(double val, int size) {
   return val;
 }
 
-__inline__ __device__ double warp_reduce_min(double val) {
+__inline__ __device__ double warp_reduce_min(double val, int i, int size) {
   for (int offset = warpSize / 2; offset > 0; offset /= 2) {
     const auto mask = __activemask();
-    val = min(val, __shfl_down_sync(mask, val, offset));
+    real val1{ __shfl_down_sync(mask, val, offset) };
+    if (i + offset >= size) {
+      val1 = 1e+6;
+    }
+    val = min(val, val1);
   }
   return val;
 }
 
-__inline__ __device__ double block_reduce_min(double val, int size) {
+__inline__ __device__ double block_reduce_min(double val, int i, int size) {
   static __shared__ double shared[32];
 //  memset(shared, 0, 32 * sizeof(real));
   const auto lane = threadIdx.x % warpSize;
   const auto wid = threadIdx.x / warpSize;
-  val = warp_reduce_min(val);
+  val = warp_reduce_min(val, i, size);
   if (lane == 0) {
     shared[wid] = val;
   }
@@ -52,9 +56,9 @@ __inline__ __device__ double block_reduce_min(double val, int size) {
   if (blockIdx.x == gridDim.x - 1) {
     n_warp = min(n_warp, (size - (gridDim.x - 1) * blockDim.x) / warpSize + 1);
   }
-  val = (threadIdx.x < n_warp) ? shared[lane] : 0;
+  val = (threadIdx.x < n_warp) ? shared[lane] : 1e+6; // The initial value should be large enough.
   if (wid == 0) {
-    val = warp_reduce_min(val);
+    val = warp_reduce_min(val, wid, n_warp);
   }
   return val;
 }
