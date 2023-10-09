@@ -5,7 +5,7 @@
 #include "Thermo.cuh"
 #include "Parallel.h"
 
-namespace cfd{
+namespace cfd {
 template<MixtureModel mix_model>
 void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
                                const Parameter &parameter) {
@@ -72,36 +72,15 @@ __global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
   const real V = abs(bv(i, j, k, 1) * metric(2, 1) + bv(i, j, k, 2) * metric(2, 2) + bv(i, j, k, 3) * metric(2, 3));
   const real W = abs(bv(i, j, k, 1) * metric(3, 1) + bv(i, j, k, 2) * metric(3, 2) + bv(i, j, k, 3) * metric(3, 3));
 
-  real specific_heat_ratio{gamma_air};
-  if constexpr (mix_model != MixtureModel::Air) {
-    real mw_inv{0.0};
-    const auto &sv{zone->sv};
-    for (integer l = 0; l < param->n_spec; ++l) {
-      mw_inv += sv(i, j, k, l) / param->mw[l];
-    }
-    const real T{bv(i, j, k, 4) / (bv(i, j, k, 0) * R_u * mw_inv)};
-
-    real cv{0}, cp{0};
-    real cp_i[MAX_SPEC_NUMBER];
-    compute_cp(T, cp_i, param);
-    for (integer l = 0; l < param->n_spec; ++l) {
-      cp += cp_i[l] * sv(i, j, k, l);
-      cv += sv(i, j, k, l) * (cp_i[l] - R_u / param->mw[l]);
-    }
-    specific_heat_ratio = cp / cv;
-  }
-
-  const real c = std::sqrt(specific_heat_ratio * bv(i, j, k, 4) / bv(i, j, k, 0));
-
   const real kx = sqrt(metric(1, 1) * metric(1, 1) + metric(1, 2) * metric(1, 2) + metric(1, 3) * metric(1, 3));
   const real ky = sqrt(metric(2, 1) * metric(2, 1) + metric(2, 2) * metric(2, 2) + metric(2, 3) * metric(2, 3));
   const real kz = sqrt(metric(3, 1) * metric(3, 1) + metric(3, 2) * metric(3, 2) + metric(3, 3) * metric(3, 3));
 
   if (param->dim == 2) {
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + c * 0.5 * (kx + ky));
+    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + zone->acoustic_speed(i, j, k) * 0.5 * (kx + ky));
   } else {
     // 3D
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + W + c * (kx + ky + kz) / 3.0);
+    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + W + zone->acoustic_speed(i, j, k) * (kx + ky + kz) / 3.0);
   }
 }
 
@@ -394,13 +373,20 @@ compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter 
 }
 
 template
-void Roe_compute_inviscid_flux<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var, const Parameter &parameter);
+void Roe_compute_inviscid_flux<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                  const integer n_var, const Parameter &parameter);
+
 template
-void Roe_compute_inviscid_flux<MixtureModel::Mixture>(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var, const Parameter &parameter);
+void Roe_compute_inviscid_flux<MixtureModel::Mixture>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                      const integer n_var, const Parameter &parameter);
+
 template
-void Roe_compute_inviscid_flux<MixtureModel::FR>(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var, const Parameter &parameter);
+void Roe_compute_inviscid_flux<MixtureModel::FR>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                 const integer n_var, const Parameter &parameter);
+
 template<>
-void Roe_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var, const Parameter &parameter){
+void Roe_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                 const integer n_var, const Parameter &parameter) {
   printf("Roe_compute_inviscid_flux<MixtureModel::FL> is not implemented yet.\n");
   MpiParallel::exit();
 }

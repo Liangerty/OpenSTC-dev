@@ -30,3 +30,6 @@ enum class OutputTimeChoice{
   Instance,   // Output the instant values, which would overwrite its previous values
   TimeSeries, // Output the values as a time series, which would create new files with time stamp
 };
+
+struct reconstruct_bv{};
+struct reconstruct_cv{};
