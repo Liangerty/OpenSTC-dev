@@ -162,4 +162,6 @@ real compute_residual(Driver<mix_model, turb> &driver, integer step) {
 
 void steady_screen_output(integer step, real err_max, gxl::Time &time, std::array<real, 4> &res);
 
+void unsteady_screen_output(integer step, real err_max, gxl::Time &time, std::array<real, 4> &res, real dt);
+
 } // cfd

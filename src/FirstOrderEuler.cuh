@@ -48,6 +48,8 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
     compute_cv_from_bv<mix_model, turb><<<BPG, tpb>>>(field[b].d_ptr, param);
   }
 
+  IOManager<mix_model, turb> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
+
   bool finished{false};
   while (!finished) {
     ++step;
@@ -66,6 +68,10 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
         store_last_step<<<bpg[b], tpb>>>(field[b].d_ptr);
       }
     }
+    real dt{1e+6};
+    if (fixed_time_step) {
+      dt = parameter.get_real("dt");
+    }
 
     for (auto b = 0; b < n_block; ++b) {
       // Set dq to 0
@@ -79,10 +85,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
     }
 
     // For unsteady simulations, the time step should be consistent in all grid points
-    real dt{1e+6};
-    if (fixed_time_step) {
-      dt = parameter.get_real("dt");
-    } else {
+    if (!fixed_time_step) {
       // compute the local time step
       for (auto b = 0; b < n_block; ++b)
         local_time_step<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
@@ -93,8 +96,8 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
     for (auto b = 0; b < n_block; ++b) {
       // Explicit temporal schemes should not use any implicit treatment.
 
-      // update conservative and basic variables
-      update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+      // update basic variables
+      update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, dt);
 
       // limit unphysical values computed by the program
       limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
@@ -129,7 +132,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
       real err_max = compute_residual(driver, step);
 //      converged = err_max < parameter.get_real("convergence_criteria");
       if (driver.myid == 0) {
-        steady_screen_output(step, err_max, driver.time, driver.res);
+        unsteady_screen_output(step, err_max, driver.time, driver.res, dt);
       }
     }
     cudaDeviceSynchronize();
@@ -139,7 +142,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
         cudaMemcpy(&n_fl_step, &(param->n_fl_step), sizeof(integer), cudaMemcpyDeviceToHost);
         parameter.update_parameter("n_fl_step", n_fl_step);
       }
-//      ioManager.print_field(step, parameter);
+      ioManager.print_field(step, parameter);
       post_process(driver);
     }
   }
