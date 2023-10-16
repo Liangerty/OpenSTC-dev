@@ -38,6 +38,26 @@ IOManager<mix_model, turb>::IOManager(integer _myid, const Mesh &_mesh, std::vec
 template<MixtureModel mix_model, class turb_method>
 struct TimeSeriesIOManager {
   FieldIO<mix_model, turb_method, OutputTimeChoice::TimeSeries> field_io;
-  BoundaryIO<mix_model, turb_method, OutputTimeChoice::TimeSeries> boundary_io;
+//  BoundaryIO<mix_model, turb_method, OutputTimeChoice::TimeSeries> boundary_io;
+
+  explicit TimeSeriesIOManager(integer _myid, const Mesh &_mesh, std::vector<Field> &_field, const Parameter &_parameter,
+                               const Species &spec, integer ngg_out);
+
+  void print_field(integer step, const Parameter &parameter, real physical_time);
 };
+
+template<MixtureModel mix_model, class turb_method>
+TimeSeriesIOManager<mix_model, turb_method>::TimeSeriesIOManager(integer _myid, const Mesh &_mesh,
+                                                                 std::vector<Field> &_field,
+                                                                 const Parameter &_parameter, const Species &spec,
+                                                                 integer ngg_out):
+    field_io(_myid, _mesh, _field, _parameter, spec, ngg_out)/*, boundary_io(_parameter, _mesh, spec, _field)*/ {
+
+}
+
+template<MixtureModel mix_model, class turb_method>
+void TimeSeriesIOManager<mix_model, turb_method>::print_field(integer step, const Parameter &parameter, real physical_time) {
+  field_io.print_field(step, physical_time);
+}
+
 }

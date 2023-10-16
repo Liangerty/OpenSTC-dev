@@ -49,8 +49,11 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
   }
 
   IOManager<mix_model, turb> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
+  TimeSeriesIOManager<mix_model, turb> timeSeriesIOManager(driver.myid, mesh, field, parameter, driver.spec, 0);
 
   bool finished{false};
+  // This should be got from a Parameter later, which may be got from a previous simulation.
+  real physical_time{0};
   while (!finished) {
     ++step;
     if (step > total_step) {
@@ -136,6 +139,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
       }
     }
     cudaDeviceSynchronize();
+    physical_time += dt;
     if (step % output_file == 0 || finished) {
       if constexpr (mix_model == MixtureModel::FL) {
         integer n_fl_step{0};
@@ -143,6 +147,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
         parameter.update_parameter("n_fl_step", n_fl_step);
       }
       ioManager.print_field(step, parameter);
+      timeSeriesIOManager.print_field(step, parameter, physical_time);
       post_process(driver);
     }
   }
