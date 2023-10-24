@@ -18,7 +18,7 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
 
   if constexpr (TurbMethod<turb_method>::hasMut){
     turb_method::compute_source_and_mut(zone, i, j, k, param);
-    // The mut is always computed in above functions, and we compute turbulent thermal conductivity here
+    // The mut is always computed in the above functions, and we compute turbulent thermal conductivity here
     if constexpr (mix_model != MixtureModel::Air) {
       zone->turb_therm_cond(i, j, k) = zone->mut(i, j, k) * zone->cp(i, j, k) / param->Prt;
     } else {

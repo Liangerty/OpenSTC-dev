@@ -77,23 +77,23 @@ void FlameletLib::read_ACANS_flamelet(const Parameter &parameter) {
     }
   }
 
-  ffz.resize(n_z + 1);
-  for (integer i = 0; i <= n_z; ++i) {
-    ffz[i] = fz[i];
-  }
+//  ffz.resize(n_z + 1);
+//  for (integer i = 0; i <= n_z; ++i) {
+//    ffz[i] = fz[i];
+//  }
 
-  zi.resize(n_z + 7);
-  zi[0] = z[0];
-  zi[1] = 1e-6;
-  zi[2] = 1e-5;
-  zi[3] = 1e-4;
-  for (integer i = 1; i < n_z; ++i) {
-    zi[i + 3] = z[i];
-  }
-  zi[n_z + 3] = 1 - 1e-4;
-  zi[n_z + 4] = 1 - 1e-5;
-  zi[n_z + 5] = 1 - 1e-6;
-  zi[n_z + 6] = 1;
+//  zi.resize(n_z + 7);
+//  zi[0] = z[0];
+//  zi[1] = 1e-6;
+//  zi[2] = 1e-5;
+//  zi[3] = 1e-4;
+//  for (integer i = 1; i < n_z; ++i) {
+//    zi[i + 3] = z[i];
+//  }
+//  zi[n_z + 3] = 1 - 1e-4;
+//  zi[n_z + 4] = 1 - 1e-5;
+//  zi[n_z + 5] = 1 - 1e-6;
+//  zi[n_z + 6] = 1;
 }
 
 __device__ void flamelet_source(cfd::DZone *zone, integer i, integer j, integer k, DParameter *param) {
