@@ -289,6 +289,7 @@ __global__ void update_bv(cfd::DZone *zone, DParameter *param) {
 
   zone->vel(i, j, k) = std::sqrt(V2);
 }
+
 template<MixtureModel mix_model, class turb_method>
 __global__ void update_bv(cfd::DZone *zone, DParameter *param, real dt) {
   const integer extent[3]{zone->mx, zone->my, zone->mz};

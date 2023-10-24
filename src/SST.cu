@@ -133,9 +133,9 @@ __device__ void SST::compute_source_and_mut(cfd::DZone *zone, integer i, integer
   const real w_z = 0.5 * (xi_z * (bv(i + 1, j, k, 3) - bv(i - 1, j, k, 3)) +
                           eta_z * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
                           zeta_z * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
-  const real density = zone->bv(i, j, k, 0);
-  const real omega = zone->sv(i, j, k, n_spec + 1);
-  auto &sv = zone->sv;
+  const real density = bv(i, j, k, 0);
+  auto& sv = zone->sv;
+  const real omega = sv(i, j, k, n_spec + 1);
   const real k_x = 0.5 * (xi_x * (sv(i + 1, j, k, n_spec) - sv(i - 1, j, k, n_spec)) +
                           eta_x * (sv(i, j + 1, k, n_spec) - sv(i, j - 1, k, n_spec)) +
                           zeta_x * (sv(i, j, k + 1, n_spec) - sv(i, j, k - 1, n_spec)));
@@ -162,7 +162,7 @@ __device__ void SST::compute_source_and_mut(cfd::DZone *zone, integer i, integer
   // Theoretically, this should be computed after updating the basic variables, but after that we won't need it until now.
   // Besides, we need the velocity gradients in the computation, which are also needed when computing source terms.
   // In order to alleviate the computational burden, we put the computation of mut here.
-  const real tke = zone->sv(i, j, k, n_spec);
+  const real tke = sv(i, j, k, n_spec);
   const real rhoK = density * tke;
   const real vorticity = std::sqrt((v_x - u_y) * (v_x - u_y) + (w_x - u_z) * (w_x - u_z) + (w_y - v_z) * (w_y - v_z));
 

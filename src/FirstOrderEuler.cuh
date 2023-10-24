@@ -140,6 +140,9 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
     }
     cudaDeviceSynchronize();
     physical_time += dt;
+    if (physical_time > total_simulation_time) {
+      finished = true;
+    }
     if (step % output_file == 0 || finished) {
       if constexpr (mix_model == MixtureModel::FL) {
         integer n_fl_step{0};

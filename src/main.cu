@@ -18,6 +18,7 @@ int main(int argc, char *argv[]) {
   integer reaction = parameter.get_int("reaction");
   integer turbulent_method = parameter.get_int("turbulence_method");
   if (!turbulent_laminar) {
+    parameter.update_parameter("turbulence_method", 0);
     turbulent_method = 0;
   }
 
