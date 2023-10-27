@@ -57,6 +57,7 @@ struct DZone {
   ggxl::Array3D<real> visc_spectr_rad;  // viscous spectral radius.
   ggxl::Array3D<real> dt_local; //local time step. Used for steady flow simulation
   ggxl::Array3D<real> entropy_fix_delta; // The coefficient for entropy fix, which is used in Roe scheme.
+  ggxl::Array3D<integer> unphysical; // When limiting the unphysical variables, this array is used to label if the current position contains unphysical values. 0-physical, 1-unphysical.
 };
 
 #endif

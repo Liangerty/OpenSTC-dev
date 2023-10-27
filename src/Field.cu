@@ -209,6 +209,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   }
 //  if (parameter.get_bool("steady")) { // steady simulation
   h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  h_ptr->unphysical.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
 //  }
   if (parameter.get_int("inviscid_scheme") == 2) {
     // Roe scheme
