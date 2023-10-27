@@ -16,7 +16,7 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
   const auto k = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
-  if constexpr (TurbMethod<turb_method>::hasMut){
+  if constexpr (TurbMethod<turb_method>::hasMut) {
     turb_method::compute_source_and_mut(zone, i, j, k, param);
     // The mut is always computed in the above functions, and we compute turbulent thermal conductivity here
     if constexpr (mix_model != MixtureModel::Air) {
@@ -30,8 +30,8 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
   if constexpr (mix_model == MixtureModel::FR) {
     // Finite rate chemistry will be computed
     finite_rate_chemistry(zone, i, j, k, param);
-  } else if constexpr (mix_model == MixtureModel::FL) {
-    // Flamelet model, the source term of the mixture fraction and its variance will be computed
+  } else if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
+    // Flamelet model, the source term of the mixture fraction variance will be computed
     flamelet_source(zone, i, j, k, param);
   }
 }

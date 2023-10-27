@@ -126,7 +126,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
         if (j1 < 0 || j1 >= my) continue;
         for (integer ia = -1; ia < 2; ++ia) {
           const integer i1{i + ia};
-          if (i1 < 0 || i1 >= mz)continue;
+          if (i1 < 0 || i1 >= mx)continue;
 
           if (isnan(bv(i1, j1, k1, 0)) || isnan(bv(i1, j1, k1, 1)) || isnan(bv(i1, j1, k1, 2)) ||
               isnan(bv(i1, j1, k1, 3)) || isnan(bv(i1, j1, k1, 4)) || bv(i1, j1, k1, 0) < ll[0] ||
@@ -218,7 +218,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
           if (j1 < 0 || j1 >= my) continue;
           for (integer ia = -1; ia < 2; ++ia) {
             const integer i1{i + ia};
-            if (i1 < 0 || i1 >= mz)continue;
+            if (i1 < 0 || i1 >= mx)continue;
 
             if (isnan(sv(i1, j1, k1, n_spec)) || isnan(sv(i1, j1, k1, 1 + n_spec)) || sv(i1, j1, k1, n_spec) < 0 ||
                 sv(i1, j1, k1, n_spec + 1) < 0) {
@@ -251,7 +251,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
   }
 
   // Limit the mixture fraction values
-  if constexpr (mixture == MixtureModel::FL) {
+  if constexpr (mixture == MixtureModel::FL || mixture == MixtureModel::MixtureFraction) {
     // Record the computed values
     real z_var[2];
     const integer i_fl{param->i_fl};
@@ -277,7 +277,7 @@ __global__ void cfd::limit_flow(cfd::DZone *zone, cfd::DParameter *param, intege
           if (j1 < 0 || j1 >= my) continue;
           for (integer ia = -1; ia < 2; ++ia) {
             const integer i1{i + ia};
-            if (i1 < 0 || i1 >= mz)continue;
+            if (i1 < 0 || i1 >= mx)continue;
 
             if (isnan(sv(i1, j1, k1, i_fl)) || sv(i1, j1, k1, i_fl) < 0 || sv(i1, j1, k1, i_fl) > 1
                 || isnan(sv(i1, j1, k1, 1 + i_fl)) || sv(i1, j1, k1, i_fl + 1) < 0 || sv(i1, j1, k1, i_fl + 1) > 0.25) {

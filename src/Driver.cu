@@ -149,5 +149,9 @@ template
 struct Driver<MixtureModel::FR, Laminar>;
 template
 struct Driver<MixtureModel::FR, SST>;
+template
+struct Driver<MixtureModel::MixtureFraction, Laminar>;
+template
+struct Driver<MixtureModel::MixtureFraction, SST>;
 
 } // cfd

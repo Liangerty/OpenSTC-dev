@@ -10,7 +10,7 @@
 
 cfd::Species::Species(Parameter &parameter) {
   parameter.update_parameter("n_spec", 0);
-  if (parameter.get_bool("species")) {
+  if (parameter.get_int("species")) {
     std::ifstream file("./input_files/" + parameter.get_string("mechanism_file"));
     std::string input{};
     while (file >> input) {
@@ -416,7 +416,7 @@ real cfd::Species::compute_reduced_dipole_moment(integer i, real *dipole_moment,
 
 cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   parameter.update_parameter("n_reac", 0);
-  if (!parameter.get_bool("species")) {
+  if (!parameter.get_int("species")) {
     return;
   }
   if (parameter.get_int("reaction") != 1) {

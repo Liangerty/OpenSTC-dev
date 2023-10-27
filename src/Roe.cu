@@ -77,10 +77,12 @@ __global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
   const real kz = sqrt(metric(3, 1) * metric(3, 1) + metric(3, 2) * metric(3, 2) + metric(3, 3) * metric(3, 3));
 
   if (param->dim == 2) {
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + zone->acoustic_speed(i, j, k) * 0.5 * (kx + ky));
+    zone->entropy_fix_delta(i, j, k) =
+        param->entropy_fix_factor * (U + V + zone->acoustic_speed(i, j, k) * 0.5 * (kx + ky));
   } else {
     // 3D
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + W + zone->acoustic_speed(i, j, k) * (kx + ky + kz) / 3.0);
+    zone->entropy_fix_delta(i, j, k) =
+        param->entropy_fix_factor * (U + V + W + zone->acoustic_speed(i, j, k) * (kx + ky + kz) / 3.0);
   }
 }
 
@@ -388,6 +390,13 @@ template<>
 void Roe_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param,
                                                  const integer n_var, const Parameter &parameter) {
   printf("Roe_compute_inviscid_flux<MixtureModel::FL> is not implemented yet.\n");
+  MpiParallel::exit();
+}
+
+template<>
+void Roe_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                              const integer n_var, const Parameter &parameter) {
+  printf("Roe_compute_inviscid_flux<MixtureModel::MixtureFraction> is not implemented yet.\n");
   MpiParallel::exit();
 }
 }

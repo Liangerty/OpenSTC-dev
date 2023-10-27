@@ -246,7 +246,7 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
         (mul + mut * sigma_omega) * (xi_x_div_jac * omega_x + xi_y_div_jac * omega_y + xi_z_div_jac * omega_z);
   }
 
-  if constexpr (mix_model == MixtureModel::FL) {
+  if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
     // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
     const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
     const auto &sv = zone->sv;
@@ -511,7 +511,7 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
         (mul + mut * sigma_omega) * (eta_x_div_jac * omega_x + eta_y_div_jac * omega_y + eta_z_div_jac * omega_z);
   }
 
-  if constexpr (mix_model == MixtureModel::FL) {
+  if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
     // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
     const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
     const auto &sv = zone->sv;
@@ -771,7 +771,7 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
         (zeta_x_div_jac * omega_x + zeta_y_div_jac * omega_y + zeta_z_div_jac * omega_z);
   }
 
-  if constexpr (mix_model == MixtureModel::FL) {
+  if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
     // For flamelet model, we need to compute the viscous term for the mixture fraction and also its variance.
     const integer i_fl{param->i_fl}, i_fl_cv{param->i_fl_cv};
     const auto &sv = zone->sv;

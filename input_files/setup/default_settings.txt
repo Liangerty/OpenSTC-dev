@@ -14,7 +14,7 @@ int     inviscid_scheme     =   3
 ///* Settings about species and reactions *///
 
 // First, specify which mixture model to be used. 0-air, 1-mixture
-bool    species             =   0
+int    species             =   0
 
 // Second, specify if reactions are activated. 0-no reaction, 1-finite rate chemistry, 2-flamelet model
 int     reaction            =   0

@@ -477,7 +477,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
     }
   }
 
-  if constexpr (mix_model == MixtureModel::FL) {
+  if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
     // Flamelet model
     const integer i_fl{param->i_fl};
     sv(i, j, k, i_fl) = sv(idx[0], idx[1], idx[2], i_fl);
@@ -528,7 +528,7 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
       zone->mut(i_gh[0], i_gh[1], i_gh[2]) = 0;
     }
 
-    if constexpr (mix_model == MixtureModel::FL) {
+    if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
       sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl) = sv(i_in[0], i_in[1], i_in[2], param->i_fl);
       sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl + 1) = sv(i_in[0], i_in[1], i_in[2], param->i_fl + 1);
     }
