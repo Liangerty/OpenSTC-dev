@@ -21,7 +21,7 @@ void initialize_from_start(Parameter &parameter, const Mesh &mesh, std::vector<F
       ye.push_back(std::get<real>(patch_cond.at("y1")));
       zs.push_back(std::get<real>(patch_cond.at("z0")));
       ze.push_back(std::get<real>(patch_cond.at("z1")));
-//      groups_inflow.emplace_back(patch_struct_name, species, parameter);
+      //groups_inflow.emplace_back(patch_struct_name, species, parameter);
       if (patch_cond.find("name") != patch_cond.cend()) {
         auto name = std::get<std::string>(patch_cond.at("name"));
         groups_inflow.emplace_back(name, species, parameter);

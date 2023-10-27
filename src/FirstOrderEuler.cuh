@@ -103,7 +103,7 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
       update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, dt);
 
       // limit unphysical values computed by the program
-      limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
+      //limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
 
       // Apply boundary conditions
       // Attention: "driver" is a template class, when a template class calls a member function of another template,
@@ -248,10 +248,10 @@ void first_order_euler_cv(Driver<mix_model, turb> &driver) {
       // Explicit temporal schemes should not use any implicit treatment.
 
       // update conservative and basic variables
-      update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
+      update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, dt);
 
       // limit unphysical values computed by the program
-      limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
+      //limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
 
       // Apply boundary conditions
       // Attention: "driver" is a template class, when a template class calls a member function of another template,

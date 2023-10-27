@@ -31,7 +31,7 @@ __global__ void compute_source(cfd::DZone *zone, DParameter *param) {
     // Finite rate chemistry will be computed
     finite_rate_chemistry(zone, i, j, k, param);
   } else if constexpr (mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) {
-    // Flamelet model, the source term of the mixture fraction variance will be computed
+    // Flamelet model, the source term of the mixture fraction and its variance will be computed
     flamelet_source(zone, i, j, k, param);
   }
 }

@@ -37,7 +37,7 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       n_scalar_transported += parameter.get_int("n_spec") + 2;
       n_scalar += 2;
       i_turb_cv = parameter.get_int("n_spec") + 5;
-      i_fl_cv = i_turb_cv+parameter.get_int("n_turb");
+      i_fl_cv = i_turb_cv + parameter.get_int("n_turb");
       ++n_other_var; // scalar dissipation rate
     } else {
       // Flamelet model
@@ -176,7 +176,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
         // DA
         h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, 0);
       }
-    } else if (parameter.get_int("reaction") == 2||parameter.get_int("species") == 2) {
+    } else if (parameter.get_int("reaction") == 2 || parameter.get_int("species") == 2) {
       // Flamelet model
       h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
       // Maybe we can also implicitly treat the source term here.
@@ -198,7 +198,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
   h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
-  if (parameter.get_int("implicit_method") == 1) {//DPLUR
+  if (parameter.get_int("implicit_method") == 1) { // DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
     // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
     h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
@@ -228,7 +228,7 @@ void cfd::Field::copy_data_from_device(const Parameter &parameter) {
     cudaMemcpy(ov[1], h_ptr->mut.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
   }
   cudaMemcpy(sv.data(), h_ptr->sv.data(), parameter.get_int("n_scalar") * size * sizeof(real), cudaMemcpyDeviceToHost);
-  if (parameter.get_int("reaction")==2||parameter.get_int("species")==2){
+  if (parameter.get_int("reaction") == 2 || parameter.get_int("species") == 2) {
     cudaMemcpy(ov[2], h_ptr->scalar_diss_rate.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
   }
 }
