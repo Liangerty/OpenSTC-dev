@@ -263,17 +263,20 @@ __global__ void update_bv(cfd::DZone *zone, DParameter *param) {
     real yk_ave[MAX_SPEC_NUMBER];
     memset(yk_ave, 0, sizeof(real) * n_spec);
     compute_massFraction_from_MixtureFraction(zone, i, j, k, param, yk_ave);
-    if (param->n_fl_step > 10000) {
-      for (integer l = 0; l < n_spec; ++l) {
-        sv(i, j, k, l) = yk_ave[l];
-      }
-    } else {
-      for (integer l = 0; l < n_spec; ++l) {
-        real yk_mix = param->yk_lib(l, 0, 0, 0) +
-                      sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
-        sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
-      }
+    for (integer l = 0; l < n_spec; ++l) {
+      sv(i, j, k, l) = yk_ave[l];
     }
+//    if (param->n_fl_step > 10000) {
+//      for (integer l = 0; l < n_spec; ++l) {
+//        sv(i, j, k, l) = yk_ave[l];
+//      }
+//    } else {
+//      for (integer l = 0; l < n_spec; ++l) {
+//        real yk_mix = param->yk_lib(l, 0, 0, 0) +
+//                      sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
+//        sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
+//      }
+//    }
   }
 
   // update temperature and pressure from total energy and species composition

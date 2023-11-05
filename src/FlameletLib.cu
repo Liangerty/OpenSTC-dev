@@ -189,22 +189,38 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
     }
     integer z_prime_2{z_prime_1 + 1};
     if (z_prime_1 == -1) {
-      //z_prime_1 = n_zPrime - 1;
-      //z_prime_2 = n_zPrime;
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, n_zPrime, param, yk_z1);
-    } else {
-      // Next, interpolate into the scalar dissipation rate
-      real yk_z11[MAX_SPEC_NUMBER], yk_z12[MAX_SPEC_NUMBER];
-      memset(yk_z11, 0, sizeof(real) * MAX_SPEC_NUMBER);
-      memset(yk_z12, 0, sizeof(real) * MAX_SPEC_NUMBER);
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_1, param, yk_z11);
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_2, param, yk_z12);
-      // Finally, interpolate into the mixture fraction variance
-      for (integer l = 0; l < n_spec; ++l) {
-        yk_z1[l] = yk_z11[l] + (yk_z12[l] - yk_z11[l]) / (param->zPrime(z_prime_2, z1) - param->zPrime(z_prime_1, z1)) *
-                               (mixFracVariance - param->zPrime(z_prime_1, z1));
-      }
+      z_prime_1 = n_zPrime - 1;
+      z_prime_2 = n_zPrime;
     }
+    // Next, interpolate into the scalar dissipation rate
+    real yk_z11[MAX_SPEC_NUMBER], yk_z12[MAX_SPEC_NUMBER];
+    memset(yk_z11, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    memset(yk_z12, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_1, param, yk_z11);
+    interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_2, param, yk_z12);
+    // Finally, interpolate into the mixture fraction variance
+    for (integer l = 0; l < n_spec; ++l) {
+      yk_z1[l] = yk_z11[l] + (yk_z12[l] - yk_z11[l]) / (param->zPrime(z_prime_2, z1) - param->zPrime(z_prime_1, z1)) *
+                             (mixFracVariance - param->zPrime(z_prime_1, z1));
+    }
+    //if (z_prime_1 == -1) {
+    //  //z_prime_1 = n_zPrime - 1;
+    //  //z_prime_2 = n_zPrime;
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, n_zPrime, param, yk_z1);
+    //}
+    //else {
+    //  // Next, interpolate into the scalar dissipation rate
+    //  real yk_z11[MAX_SPEC_NUMBER], yk_z12[MAX_SPEC_NUMBER];
+    //  memset(yk_z11, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    //  memset(yk_z12, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_1, param, yk_z11);
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z1, z_prime_2, param, yk_z12);
+    //  // Finally, interpolate into the mixture fraction variance
+    //  for (integer l = 0; l < n_spec; ++l) {
+    //    yk_z1[l] = yk_z11[l] + (yk_z12[l] - yk_z11[l]) / (param->zPrime(z_prime_2, z1) - param->zPrime(z_prime_1, z1)) *
+    //      (mixFracVariance - param->zPrime(z_prime_1, z1));
+    //  }
+    //}
   }
 
   // Next, at z2
@@ -227,22 +243,38 @@ compute_massFraction_from_MixtureFraction(cfd::DZone *zone, integer i, integer j
     }
     integer z_prime_2{z_prime_1 + 1};
     if (z_prime_1 == -1) {
-      //z_prime_1 = n_zPrime - 1;
-      //z_prime_2 = n_zPrime;
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, n_zPrime, param, yk_z2);
-    } else {
-      // Next, interpolate into the scalar dissipation rate
-      real yk_z21[MAX_SPEC_NUMBER], yk_z22[MAX_SPEC_NUMBER];
-      memset(yk_z21, 0, sizeof(real) * MAX_SPEC_NUMBER);
-      memset(yk_z22, 0, sizeof(real) * MAX_SPEC_NUMBER);
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_1, param, yk_z21);
-      interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_2, param, yk_z22);
-      // Finally, interpolate into the mixture fraction variance
-      for (integer l = 0; l < n_spec; ++l) {
-        yk_z2[l] = yk_z21[l] + (yk_z22[l] - yk_z21[l]) / (param->zPrime(z_prime_2, z2) - param->zPrime(z_prime_1, z2)) *
-                               (mixFracVariance - param->zPrime(z_prime_1, z2));
-      }
+      z_prime_1 = n_zPrime - 1;
+      z_prime_2 = n_zPrime;
     }
+    // Next, interpolate into the scalar dissipation rate
+    real yk_z21[MAX_SPEC_NUMBER], yk_z22[MAX_SPEC_NUMBER];
+    memset(yk_z21, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    memset(yk_z22, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_1, param, yk_z21);
+    interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_2, param, yk_z22);
+    // Finally, interpolate into the mixture fraction variance
+    for (integer l = 0; l < n_spec; ++l) {
+      yk_z2[l] = yk_z21[l] + (yk_z22[l] - yk_z21[l]) / (param->zPrime(z_prime_2, z2) - param->zPrime(z_prime_1, z2)) *
+                             (mixFracVariance - param->zPrime(z_prime_1, z2));
+    }
+    //if (z_prime_1 == -1) {
+    //  //z_prime_1 = n_zPrime - 1;
+    //  //z_prime_2 = n_zPrime;
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, n_zPrime, param, yk_z2);
+    //}
+    //else {
+    //  // Next, interpolate into the scalar dissipation rate
+    //  real yk_z21[MAX_SPEC_NUMBER], yk_z22[MAX_SPEC_NUMBER];
+    //  memset(yk_z21, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    //  memset(yk_z22, 0, sizeof(real) * MAX_SPEC_NUMBER);
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_1, param, yk_z21);
+    //  interpolate_scalar_dissipation_rate_with_given_z_zPrime(chi_ave, n_spec, z2, z_prime_2, param, yk_z22);
+    //  // Finally, interpolate into the mixture fraction variance
+    //  for (integer l = 0; l < n_spec; ++l) {
+    //    yk_z2[l] = yk_z21[l] + (yk_z22[l] - yk_z21[l]) / (param->zPrime(z_prime_2, z2) - param->zPrime(z_prime_1, z2)) *
+    //      (mixFracVariance - param->zPrime(z_prime_1, z2));
+    //  }
+    //}
   }
 
   // Finally, acquire the value from a linear interpolation between z1 and z2

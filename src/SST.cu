@@ -134,7 +134,7 @@ __device__ void SST::compute_source_and_mut(cfd::DZone *zone, integer i, integer
                           eta_z * (bv(i, j + 1, k, 3) - bv(i, j - 1, k, 3)) +
                           zeta_z * (bv(i, j, k + 1, 3) - bv(i, j, k - 1, 3)));
   const real density = bv(i, j, k, 0);
-  auto& sv = zone->sv;
+  auto &sv = zone->sv;
   const real omega = sv(i, j, k, n_spec + 1);
   const real k_x = 0.5 * (xi_x * (sv(i + 1, j, k, n_spec) - sv(i - 1, j, k, n_spec)) +
                           eta_x * (sv(i, j + 1, k, n_spec) - sv(i, j - 1, k, n_spec)) +
@@ -222,9 +222,12 @@ __device__ void SST::compute_source_and_mut(cfd::DZone *zone, integer i, integer
     const real divU = u_x + v_y + w_z;
     const real divU2 = divU * divU;
 
-    const real prod_k =
-        mut * (2 * (u_x * u_x + v_y * v_y + w_z * w_z) - 2.0 / 3 * divU2 + (u_y + v_x) * (u_y + v_x) +
-               (u_z + w_x) * (u_z + w_x) + (v_z + w_y) * (v_z + w_y)) - 2.0 / 3 * rhoK * divU;
+    real prod_k = mut * (2 * (u_x * u_x + v_y * v_y + w_z * w_z) - 2.0 / 3 * divU2 + (u_y + v_x) * (u_y + v_x) +
+                         (u_z + w_x) * (u_z + w_x) + (v_z + w_y) * (v_z + w_y)) - 2.0 / 3 * rhoK * divU;
+    const real prod_k2 = mut * vorticity * vorticity;
+    if (prod_k > 10 * prod_k2)
+      prod_k = prod_k2;
+
     const real diss_k = betaStar * rhoK * omega;
     const real jac = zone->jac(i, j, k);
     const integer i_turb_cv{param->i_turb_cv};
