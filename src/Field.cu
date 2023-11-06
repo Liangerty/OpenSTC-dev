@@ -216,6 +216,14 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
     h_ptr->entropy_fix_delta.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }
 
+  if (!parameter.get_bool("steady")) {
+    // unsteady simulation
+    if (parameter.get_int("temporal_scheme") == 3) {
+      // rk scheme
+      h_ptr->qn.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
+    }
+  }
+
   cudaMalloc(&d_ptr, sizeof(DZone));
   cudaMemcpy(d_ptr, h_ptr, sizeof(DZone), cudaMemcpyHostToDevice);
 }

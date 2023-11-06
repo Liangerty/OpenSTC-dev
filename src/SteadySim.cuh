@@ -97,7 +97,7 @@ void steady_simulation(Driver<mix_model, turb> &driver) {
       driver.bound_cond.template apply_boundary_conditions<mix_model, turb>(mesh[b], field[b], param);
     }
     // Third, transfer data between and within processes
-    data_communication(mesh, field, parameter, step, param);
+    data_communication<mix_model, turb>(mesh, field, parameter, step, param);
 
     if (mesh.dimension == 2) {
       for (auto b = 0; b < n_block; ++b) {

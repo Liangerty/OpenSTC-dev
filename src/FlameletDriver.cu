@@ -4,7 +4,7 @@
 #include "DataCommunication.cuh"
 #include "WallDistance.cuh"
 
-namespace cfd{
+namespace cfd {
 template<class turb>
 Driver<MixtureModel::FL, turb>::Driver(Parameter &parameter, Mesh &mesh_):
     myid(parameter.get_int("myid")), time(), mesh(mesh_), parameter(parameter),
@@ -45,8 +45,8 @@ void Driver<MixtureModel::FL, turb>::initialize_computation() {
 
   // If we use k-omega SST model, we need the wall distance, thus we need to compute or read it here.
   if constexpr (TurbMethod<turb>::needWallDistance == true) {
-      // SST method
-      acquire_wall_distance<MixtureModel::FL, turb>(*this);
+    // SST method
+    acquire_wall_distance<MixtureModel::FL, turb>(*this);
   }
 
   if (mesh.dimension == 2) {
@@ -71,13 +71,13 @@ void Driver<MixtureModel::FL, turb>::initialize_computation() {
     dim3 bpg{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
     compute_velocity<<<bpg, tpb>>>(field[i].d_ptr);
 //    compute_cv_from_bv<MixtureModel::FL, turb_method><<<bpg, tpb>>>(field[i].d_ptr, param);
-    if constexpr (TurbMethod<turb>::hasMut==true){
+    if constexpr (TurbMethod<turb>::hasMut == true) {
       initialize_mut<MixtureModel::FL, turb><<<bpg, tpb >>>(field[i].d_ptr, param);
     }
   }
   cudaDeviceSynchronize();
   // Third, communicate values between processes
-  data_communication(mesh, field, parameter, 0, param);
+  data_communication<MixtureModel::FL, turb>(mesh, field, parameter, 0, param);
 
   if (myid == 0) {
     printf("Finish data transfer.\n");
@@ -114,6 +114,7 @@ void Driver<MixtureModel::FL, turb>::initialize_computation() {
 //}
 
 // Explicitly instantiate the template, which means the flamelet model can only be used with RANS and LES.
-template struct Driver<MixtureModel::FL,SST>;
+template
+struct Driver<MixtureModel::FL, SST>;
 //template<> struct Driver<MixtureModel::FL,TurbulenceMethod::LES>;
 }

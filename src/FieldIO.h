@@ -22,13 +22,14 @@ class FieldIO {
   MPI_Offset offset_header = 0;
   MPI_Offset *offset_minmax_var = nullptr;
   MPI_Offset *offset_var = nullptr;
+  MPI_Offset *offset_sol_time = nullptr;
 
 public:
   explicit FieldIO(integer _myid, const Mesh &_mesh, std::vector<Field> &_field, const Parameter &_parameter,
                    const Species &spec,
                    int ngg_out);
 
-  void print_field(integer step) const;
+  void print_field(integer step, real time = 0) const;
 
 private:
   void write_header();
@@ -69,6 +70,8 @@ void FieldIO<mix_model, turb, output_time_choice>::write_header() {
   // I. Header section
 
   // Each file should have only one header; thus we let process 0 to write it.
+
+  auto *offset_solution_time = new MPI_Offset[mesh.n_block_total];
 
   MPI_Offset offset{0};
   if (myid == 0) {
@@ -117,6 +120,7 @@ void FieldIO<mix_model, turb, output_time_choice>::write_header() {
       MPI_File_write_at(fp, offset, &strand_id, 1, MPI_INT32_T, &status);
       offset += 4;
       // 5. Solution time. For steady, the value is set 0. For unsteady, please create a new class
+      offset_solution_time[i] = offset;
       constexpr double solution_time{0};
       MPI_File_write_at(fp, offset, &solution_time, 1, MPI_DOUBLE, &status);
       offset += 8;
@@ -167,6 +171,14 @@ void FieldIO<mix_model, turb, output_time_choice>::write_header() {
 
     offset_header = offset;
   }
+  offset_sol_time = new MPI_Offset[mesh.n_block];
+  auto *disp = new integer[mesh.n_proc];
+  disp[0] = 0;
+  for (int i = 1; i < mesh.n_proc; ++i) {
+    disp[i] = disp[i - 1] + mesh.nblk[i - 1];
+  }
+  MPI_Scatterv(offset_solution_time, mesh.nblk, disp, MPI_OFFSET, offset_sol_time, mesh.n_block, MPI_OFFSET, 0,
+               MPI_COMM_WORLD);
   MPI_Bcast(&offset_header, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
   MPI_Bcast(&n_var, 1, MPI_INT32_T, 0, MPI_COMM_WORLD);
   MPI_File_close(&fp);
@@ -442,7 +454,7 @@ FieldIO<mix_model, turb, output_time_choice>::acquire_variable_names(std::vector
 }
 
 template<MixtureModel mix_model, class turb, OutputTimeChoice output_time_choice>
-void FieldIO<mix_model, turb, output_time_choice>::print_field(integer step) const {
+void FieldIO<mix_model, turb, output_time_choice>::print_field(integer step, real time) const {
   if (myid == 0) {
     std::ofstream file("output/message/step.txt");
     file << step;
@@ -463,7 +475,10 @@ void FieldIO<mix_model, turb, output_time_choice>::print_field(integer step) con
   // II. Data Section
   // First, modify the new min/max values of the variables
   for (int blk = 0; blk < mesh.n_block; ++blk) {
-    MPI_Offset offset{offset_minmax_var[blk]};
+    MPI_Offset offset{offset_sol_time[blk]};
+    MPI_File_write_at(fp, offset, &time, 1, MPI_DOUBLE, &status);
+
+    offset = offset_minmax_var[blk];
 
     double min_val{0}, max_val{1};
     auto &b{mesh[blk]};

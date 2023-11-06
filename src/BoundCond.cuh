@@ -23,7 +23,7 @@ struct DBoundCond {
 
   void link_bc_to_boundaries(Mesh &mesh, std::vector<Field> &field) const;
 
-  template<MixtureModel mix_model, class turb>
+  template<MixtureModel mix_model, class turb, bool with_cv = false>
   void apply_boundary_conditions(const Block &block, Field &field, DParameter *param) const;
 
   integer n_wall = 0, n_symmetry = 0, n_inflow = 0, n_outflow = 0, n_farfield = 0, n_subsonic_inflow = 0, n_back_pressure = 0;
@@ -49,7 +49,7 @@ void count_boundary_of_type_bc(const std::vector<Boundary> &boundary, integer n_
 void link_boundary_and_condition(const std::vector<Boundary> &boundary, BCInfo *bc, integer n_bc, integer **sep,
                                  integer i_zone);
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_symmetry(DZone *zone, integer i_face, DParameter *param) {
   const auto &b = zone->boundary[i_face];
   auto range_start = b.range_start, range_end = b.range_end;
@@ -117,7 +117,7 @@ __global__ void apply_symmetry(DZone *zone, integer i_face, DParameter *param) {
   }
 }
 
-template<class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_outflow(DZone *zone, integer i_face, const DParameter *param) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -143,10 +143,13 @@ __global__ void apply_outflow(DZone *zone, integer i_face, const DParameter *par
     if constexpr (TurbMethod<turb>::hasMut) {
       zone->mut(gi, gj, gk) = zone->mut(i, j, k);
     }
+    if constexpr (with_cv){
+      compute_cv_from_bv_1_point<mix_model, turb>(zone, param, gi, gj, gk);
+    }
   }
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParameter *param) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -183,6 +186,9 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
     zone->mut(i, j, k) = inflow->mut;
   }
   zone->vel(i, j, k) = inflow->velocity;
+  if constexpr (with_cv){
+    compute_cv_from_bv_1_point<mix_model, turb>(zone, param, i, j, k);
+  }
 
   for (integer g = 1; g <= ngg; g++) {
     const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -198,10 +204,13 @@ __global__ void apply_inflow(DZone *zone, Inflow *inflow, integer i_face, DParam
     if constexpr (TurbMethod<turb>::hasMut) {
       zone->mut(gi, gj, gk) = inflow->mut;
     }
+    if constexpr (with_cv){
+      compute_cv_from_bv_1_point<mix_model, turb>(zone, param, gi, gj, gk);
+    }
   }
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, DParameter *param) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -267,7 +276,6 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
       zone->mut(i, j, k) = farfield->mut;
     }
     zone->vel(i, j, k) = std::sqrt(u * u + v * v + w * w);
-
 
     for (integer g = 1; g <= ngg; g++) {
       const integer gi{i + g * dir[0]}, gj{j + g * dir[1]}, gk{k + g * dir[2]};
@@ -414,7 +422,7 @@ __global__ void apply_farfield(DZone *zone, FarField *farfield, integer i_face, 
 
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i_face) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -484,6 +492,10 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
     sv(i, j, k, i_fl + 1) = sv(idx[0], idx[1], idx[2], i_fl + 1);
   }
 
+  if constexpr (with_cv){
+    compute_cv_from_bv_1_point<mix_model, turb>(zone, param, i, j, k);
+  }
+
   for (int g = 1; g <= ngg; ++g) {
     const integer i_in[]{i - g * dir[0], j - g * dir[1], k - g * dir[2]};
     const integer i_gh[]{i + g * dir[0], j + g * dir[1], k + g * dir[2]};
@@ -532,10 +544,14 @@ __global__ void apply_wall(DZone *zone, Wall *wall, DParameter *param, integer i
       sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl) = sv(i_in[0], i_in[1], i_in[2], param->i_fl);
       sv(i_gh[0], i_gh[1], i_gh[2], param->i_fl + 1) = sv(i_in[0], i_in[1], i_in[2], param->i_fl + 1);
     }
+
+    if constexpr (with_cv){
+      compute_cv_from_bv_1_point<mix_model, turb>(zone, param, i_gh[0], i_gh[1], i_gh[2]);
+    }
   }
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DParameter *param, integer i_face) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -612,10 +628,14 @@ __global__ void apply_subsonic_inflow(DZone *zone, SubsonicInflow *inflow, DPara
     // In CFL3D, only the first ghost layer is assigned with the value on the boundary, and the rest are assigned with 0.
     if constexpr (TurbMethod<turb>::hasMut)
       zone->mut(gi, gj, gk) = zone->mut(i, j, k);
+
+    if constexpr (with_cv){
+      compute_cv_from_bv_1_point<mix_model, turb>(zone, param, gi, gj, gk);
+    }
   }
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv = false>
 __global__ void apply_back_pressure(DZone *zone, BackPressure *backPressure, DParameter *param, integer i_face) {
   const integer ngg = zone->ngg;
   integer dir[]{0, 0, 0};
@@ -644,10 +664,13 @@ __global__ void apply_back_pressure(DZone *zone, BackPressure *backPressure, DPa
     if constexpr (TurbMethod<turb>::hasMut) {
       zone->mut(gi, gj, gk) = zone->mut(i, j, k);
     }
+    if constexpr (with_cv){
+      compute_cv_from_bv_1_point<mix_model, turb>(zone, param, gi, gj, gk);
+    }
   }
 }
 
-template<MixtureModel mix_model, class turb>
+template<MixtureModel mix_model, class turb, bool with_cv>
 void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DParameter *param) const {
   // Boundary conditions are applied in the order of priority, which with higher priority is applied later.
   // Finally, the communication between faces will be carried out after these bc applied
@@ -670,7 +693,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_farfield<mix_model, turb> <<<BPG, TPB>>>(field.d_ptr, &farfield[l], i_face, param);
+      apply_farfield<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, &farfield[l], i_face, param);
     }
   }
 
@@ -691,7 +714,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_outflow<turb> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
+      apply_outflow<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
     }
   }
   for (size_t l = 0; l < n_back_pressure; l++) {
@@ -710,7 +733,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_back_pressure<mix_model, turb> <<<BPG, TPB>>>(field.d_ptr, &back_pressure[l], param, i_face);
+      apply_back_pressure<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, &back_pressure[l], param, i_face);
     }
   }
 
@@ -731,7 +754,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_inflow<mix_model, turb> <<<BPG, TPB>>>(field.d_ptr, &inflow[l], i_face, param);
+      apply_inflow<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, &inflow[l], i_face, param);
     }
   }
   // 7 - subsonic inflow
@@ -751,7 +774,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_subsonic_inflow<mix_model, turb> <<<BPG, TPB>>>(field.d_ptr, &subsonic_inflow[l], param, i_face);
+      apply_subsonic_inflow<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, &subsonic_inflow[l], param, i_face);
     }
   }
 
@@ -772,7 +795,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_symmetry<mix_model, turb> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
+      apply_symmetry<mix_model, turb, with_cv> <<<BPG, TPB>>>(field.d_ptr, i_face, param);
     }
   }
 
@@ -793,7 +816,7 @@ void DBoundCond::apply_boundary_conditions(const Block &block, Field &field, DPa
         bpg[j] = (n_point - 1) / tpb[j] + 1;
       }
       dim3 TPB{tpb[0], tpb[1], tpb[2]}, BPG{bpg[0], bpg[1], bpg[2]};
-      apply_wall<mix_model, turb><<<BPG, TPB>>>(field.d_ptr, &wall[l], param, i_face);
+      apply_wall<mix_model, turb, with_cv><<<BPG, TPB>>>(field.d_ptr, &wall[l], param, i_face);
     }
   }
 }
