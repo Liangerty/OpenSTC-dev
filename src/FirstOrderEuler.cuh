@@ -131,15 +131,15 @@ void first_order_euler_bv(Driver<mix_model, turb> &driver) {
     }
 
     // Finally, test if the simulation reaches convergence state
+    physical_time += dt;
     if (step % output_screen == 0 || step == 1) {
       real err_max = compute_residual(driver, step);
 //      converged = err_max < parameter.get_real("convergence_criteria");
       if (driver.myid == 0) {
-        unsteady_screen_output(step, err_max, driver.time, driver.res, dt);
+        unsteady_screen_output(step, err_max, driver.time, driver.res, dt, physical_time);
       }
     }
     cudaDeviceSynchronize();
-    physical_time += dt;
     if (physical_time > total_simulation_time) {
       finished = true;
     }

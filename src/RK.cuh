@@ -59,7 +59,7 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
 
   bool finished{false};
   // This should be got from a Parameter later, which may be got from a previous simulation.
-  real physical_time{0};
+  real physical_time{parameter.get_real("solution_time")};
 
   real dt{1e+6};
   const bool fixed_time_step{parameter.get_bool("fixed_time_step")};
@@ -148,14 +148,14 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
     }
 
     // Finally, test if the simulation reaches convergence state
+    physical_time += dt;
     if (step % output_screen == 0 || step == 1) {
       real err_max = compute_residual(driver, step);
       if (driver.myid == 0) {
-        unsteady_screen_output(step, err_max, driver.time, driver.res, dt);
+        unsteady_screen_output(step, err_max, driver.time, driver.res, dt, physical_time);
       }
     }
     cudaDeviceSynchronize();
-    physical_time += dt;
     if (physical_time > total_simulation_time) {
       finished = true;
     }
