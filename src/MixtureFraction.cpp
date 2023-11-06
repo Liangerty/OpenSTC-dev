@@ -145,7 +145,6 @@ real cfd::BilgerCH::compute_mixture_fraction(std::vector<real> &yk) {
   }
   const real beta = compute_coupling_function(z_c, z_h, z_o);
   return (beta - beta_o) / beta_diff;
-
 }
 
 BilgerCH::BilgerCH(Inflow &fuel, Inflow &oxidizer, const Species &spec, integer myid) :

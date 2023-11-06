@@ -10,7 +10,7 @@
 
 cfd::Species::Species(Parameter &parameter) {
   parameter.update_parameter("n_spec", 0);
-  if (parameter.get_bool("species")) {
+  if (parameter.get_int("species")) {
     std::ifstream file("./input_files/" + parameter.get_string("mechanism_file"));
     std::string input{};
     while (file >> input) {
@@ -67,7 +67,7 @@ cfd::Species::Species(Parameter &parameter) {
       MpiParallel::exit();
     }
     parameter.update_parameter("n_spec", num_spec);
-    if (parameter.get_int("reaction")!=2){
+    if (parameter.get_int("reaction") != 2) {
       // Not flamelet model, update these variables. If flamelet, these variables will be updated later.
       parameter.update_parameter("n_var", parameter.get_int("n_var") + num_spec);
       parameter.update_parameter("n_scalar", parameter.get_int("n_scalar") + num_spec);
@@ -182,7 +182,7 @@ bool cfd::Species::read_therm(std::ifstream &therm_dat, bool read_from_comb_mech
       has_trans = true;
       break;
     }
-    if (n_read >= n_spec) continue;
+    if (n_read >= n_spec) break;
 
     // Let us read the species.
     key.assign(input, 0, 18);
@@ -229,6 +229,7 @@ bool cfd::Species::read_therm(std::ifstream &therm_dat, bool read_from_comb_mech
       if (comp_str.empty() || comp_str.starts_with('0')) break;
       gxl::to_stringstream(comp_str, line);
       line >> key;
+      if (!elem_list.contains(key)) continue;
       int stoi{0};
       line >> stoi;
       elem_comp(curr_sp, elem_list[key]) = stoi;
@@ -416,7 +417,7 @@ real cfd::Species::compute_reduced_dipole_moment(integer i, real *dipole_moment,
 
 cfd::Reaction::Reaction(Parameter &parameter, const Species &species) {
   parameter.update_parameter("n_reac", 0);
-  if (!parameter.get_bool("species")) {
+  if (!parameter.get_int("species")) {
     return;
   }
   if (parameter.get_int("reaction") != 1) {

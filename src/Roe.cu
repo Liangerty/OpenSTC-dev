@@ -60,9 +60,9 @@ void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter 
 template<MixtureModel mix_model>
 __global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
   const integer mx{zone->mx}, my{zone->my}, mz{zone->mz};
-  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - 1;
-  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - 1;
-  integer k = (integer) (blockDim.z * blockIdx.z + threadIdx.z) - 1;
+  integer i = (integer)(blockDim.x * blockIdx.x + threadIdx.x) - 1;
+  integer j = (integer)(blockDim.y * blockIdx.y + threadIdx.y) - 1;
+  integer k = (integer)(blockDim.z * blockIdx.z + threadIdx.z) - 1;
   if (i >= mx + 1 || j >= my + 1 || k >= mz + 1) return;
 
   const auto &bv{zone->bv};
@@ -77,10 +77,12 @@ __global__ void compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param) {
   const real kz = sqrt(metric(3, 1) * metric(3, 1) + metric(3, 2) * metric(3, 2) + metric(3, 3) * metric(3, 3));
 
   if (param->dim == 2) {
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + zone->acoustic_speed(i, j, k) * 0.5 * (kx + ky));
+    zone->entropy_fix_delta(i, j, k) =
+        param->entropy_fix_factor * (U + V + zone->acoustic_speed(i, j, k) * 0.5 * (kx + ky));
   } else {
     // 3D
-    zone->entropy_fix_delta(i, j, k) = param->entropy_fix_factor * (U + V + W + zone->acoustic_speed(i, j, k) * (kx + ky + kz) / 3.0);
+    zone->entropy_fix_delta(i, j, k) =
+        param->entropy_fix_factor * (U + V + W + zone->acoustic_speed(i, j, k) * (kx + ky + kz) / 3.0);
   }
 }
 
@@ -89,15 +91,15 @@ __global__ void
 Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
   integer labels[3]{0, 0, 0};
   labels[direction] = 1;
-  const auto tid = (integer) (threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2]);
-  const auto block_dim = (integer) (blockDim.x * blockDim.y * blockDim.z);
+  const auto tid = (integer)(threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2]);
+  const auto block_dim = (integer)(blockDim.x * blockDim.y * blockDim.z);
   const auto ngg{zone->ngg};
   const integer n_point = block_dim + 2 * ngg - 1;
 
   integer idx[3];
-  idx[0] = (integer) ((blockDim.x - labels[0]) * blockIdx.x + threadIdx.x);
-  idx[1] = (integer) ((blockDim.y - labels[1]) * blockIdx.y + threadIdx.y);
-  idx[2] = (integer) ((blockDim.z - labels[2]) * blockIdx.z + threadIdx.z);
+  idx[0] = (integer)((blockDim.x - labels[0]) * blockIdx.x + threadIdx.x);
+  idx[1] = (integer)((blockDim.y - labels[1]) * blockIdx.y + threadIdx.y);
+  idx[2] = (integer)((blockDim.z - labels[2]) * blockIdx.z + threadIdx.z);
   idx[direction] -= 1;
   if (idx[direction] >= max_extent) return;
 
@@ -388,6 +390,13 @@ template<>
 void Roe_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param,
                                                  const integer n_var, const Parameter &parameter) {
   printf("Roe_compute_inviscid_flux<MixtureModel::FL> is not implemented yet.\n");
+  MpiParallel::exit();
+}
+
+template<>
+void Roe_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                              const integer n_var, const Parameter &parameter) {
+  printf("Roe_compute_inviscid_flux<MixtureModel::MixtureFraction> is not implemented yet.\n");
   MpiParallel::exit();
 }
 }

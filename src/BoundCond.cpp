@@ -94,8 +94,8 @@ cfd::Inflow::Inflow(const std::string &inflow_name, Species &spec, Parameter &pa
     }
   }
 
-  if ((n_spec > 0 && parameter.get_int("reaction") == 2)) {
-    // flamelet model
+  if ((n_spec > 0 && parameter.get_int("reaction") == 2) || parameter.get_int("species") == 2) {
+    // flamelet model or z and z prime are transported
     if (parameter.get_int("turbulence_method") == 1) {
       // RANS simulation
       const auto i_fl{parameter.get_int("i_fl")};

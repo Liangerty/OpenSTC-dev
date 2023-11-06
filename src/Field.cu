@@ -16,7 +16,7 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
   // This label, "i_turb_cv", is introduced to label the index of the first turbulent variable in the conservative variable array.
   integer i_turb_cv{0}, i_fl_cv{0};
 
-  if (parameter.get_bool("species")) {
+  if (parameter.get_int("species") == 1) {
     n_scalar += parameter.get_int("n_spec");
     if (parameter.get_int("reaction") != 2) {
       // Mixture / Finite rate chemistry
@@ -28,6 +28,24 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       n_scalar += 2;
       i_turb_cv = 5;
       i_fl_cv = 5 + parameter.get_int("n_turb");
+      ++n_other_var; // scalar dissipation rate
+    }
+  } else if (parameter.get_int("species") == 2) {
+    n_scalar += parameter.get_int("n_spec");
+    if (parameter.get_int("reaction") != 2) {
+      // Mixture with mixture fraction and variance solved.
+      n_scalar_transported += parameter.get_int("n_spec") + 2;
+      n_scalar += 2;
+      i_turb_cv = parameter.get_int("n_spec") + 5;
+      i_fl_cv = i_turb_cv + parameter.get_int("n_turb");
+      ++n_other_var; // scalar dissipation rate
+    } else {
+      // Flamelet model
+      n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
+      n_scalar += 2;
+      i_turb_cv = 5;
+      i_fl_cv = 5 + parameter.get_int("n_turb");
+      ++n_other_var; // scalar dissipation rate
     }
   }
   if (parameter.get_bool("turbulence")) {
@@ -78,11 +96,11 @@ void cfd::Field::initialize_basic_variables(const Parameter &parameter, const st
       for (int k = -ngg; k < block.mz + ngg; ++k) {
         size_t i_init{0};
         if (inflows.size() > 1) {
-          for (size_t l = 1; l < inflows.size(); ++l) {
+          for (size_t l = 0; l < inflows.size() - 1; ++l) {
             if (block.x(i, j, k) >= xs[l] && block.x(i, j, k) <= xe[l]
                 && block.y(i, j, k) >= ys[l] && block.y(i, j, k) <= ye[l]
                 && block.z(i, j, k) >= zs[l] && block.z(i, j, k) <= ze[l]) {
-              i_init = l;
+              i_init = l + 1;
               break;
             }
           }
@@ -158,9 +176,9 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
         // DA
         h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, 0);
       }
-    } else if (parameter.get_int("reaction") == 2) {
+    } else if (parameter.get_int("reaction") == 2 || parameter.get_int("species") == 2) {
       // Flamelet model
-      h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+      h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
       // Maybe we can also implicitly treat the source term here.
     }
   }
@@ -180,7 +198,7 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
   h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
   h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
-  if (parameter.get_int("implicit_method") == 1) {//DPLUR
+  if (parameter.get_int("implicit_method") == 1) { // DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
     // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
     h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
@@ -190,7 +208,8 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
     h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
   }
 //  if (parameter.get_bool("steady")) { // steady simulation
-    h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  h_ptr->unphysical.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
 //  }
   if (parameter.get_int("inviscid_scheme") == 2) {
     // Roe scheme
@@ -210,4 +229,7 @@ void cfd::Field::copy_data_from_device(const Parameter &parameter) {
     cudaMemcpy(ov[1], h_ptr->mut.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
   }
   cudaMemcpy(sv.data(), h_ptr->sv.data(), parameter.get_int("n_scalar") * size * sizeof(real), cudaMemcpyDeviceToHost);
+  if (parameter.get_int("reaction") == 2 || parameter.get_int("species") == 2) {
+    cudaMemcpy(ov[2], h_ptr->scalar_diss_rate.data(), size * sizeof(real), cudaMemcpyDeviceToHost);
+  }
 }

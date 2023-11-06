@@ -89,7 +89,7 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   // The 2nd one tells if turbulent var exists, if 0 (compute from laminar), 1(From SA), 2(From SST)
   std::array old_data_info{0, 0};
   auto index_order = cfd::identify_variable_labels<mix_model, turb>(parameter, var_name, species,
-                                                                           old_data_info);
+                                                                    old_data_info);
   const integer n_spec{species.n_spec};
   const integer n_turb{parameter.get_int("n_turb")};
 
@@ -208,14 +208,17 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   if constexpr (mix_model != MixtureModel::Air) {
     if (old_data_info[0] == 0) {
       initialize_spec_from_inflow(parameter, mesh, field, species);
+      old_data_info[0] = 1;
     }
   }
-  if constexpr (TurbMethod<turb>::type==TurbulentSimulationMethod::RANS) {
+  if constexpr (TurbMethod<turb>::type == TurbulentSimulationMethod::RANS) {
     if (old_data_info[1] == 0) {
       initialize_turb_from_inflow(parameter, mesh, field, species);
     }
   }
-  if constexpr (mix_model == MixtureModel::FL && (TurbMethod<turb>::type==TurbulentSimulationMethod::RANS || TurbMethod<turb>::type==TurbulentSimulationMethod::LES)) {
+  if constexpr ((mix_model == MixtureModel::FL || mix_model == MixtureModel::MixtureFraction) &&
+                (TurbMethod<turb>::type == TurbulentSimulationMethod::RANS ||
+                 TurbMethod<turb>::type == TurbulentSimulationMethod::LES)) {
     if (old_data_info[0] == 1) {
       // From species field to mixture fraction field
       initialize_mixture_fraction_from_species(parameter, mesh, field, species);
@@ -277,7 +280,7 @@ identify_variable_labels(cfd::Parameter &parameter, std::vector<std::string> &va
           old_data_info[0] = 2;
         }
       }
-      if constexpr (TurbMethod<turb>::type==TurbulentSimulationMethod::RANS) {
+      if constexpr (TurbMethod<turb>::type == TurbulentSimulationMethod::RANS) {
         // We expect to find some RANS variables. If not found, old_data_info[1] will remain 0.
         if (n == "K" || n == "TKE") { // turbulent kinetic energy
           if (n_turb == 2) {

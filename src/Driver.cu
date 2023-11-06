@@ -122,17 +122,20 @@ __global__ void compute_wall_distance(const real *wall_point_coor, DZone *zone, 
 
 void write_reference_state(const Parameter &parameter) {
   if (parameter.get_int("myid") == 0) {
-    std::ofstream ref_state("output/message/reference_state.txt", std::ios::trunc);
-    ref_state << "Reference state\n";
-    ref_state << "rho_inf = " << parameter.get_real("rho_inf") << '\n';
-    ref_state << "v_inf = " << parameter.get_real("v_inf") << '\n';
-    ref_state << "p_inf = " << parameter.get_real("p_inf") << '\n';
-    ref_state << "T_inf = " << parameter.get_real("T_inf") << '\n';
-    ref_state << "M_inf = " << parameter.get_real("M_inf") << '\n';
-    ref_state << "Re_unit = " << parameter.get_real("Re_unit") << '\n';
-    ref_state << "mu_inf = " << parameter.get_real("mu_inf") << '\n';
-    ref_state << "acoustic_speed_inf = " << parameter.get_real("v_inf") / parameter.get_real("M_inf") << '\n';
-    ref_state.close();
+    const std::filesystem::path out_dir("output/message");
+    if (!exists(out_dir)) {
+      create_directories(out_dir);
+    }
+    FILE* ref_state = fopen("output/message/reference_state.txt", "w");
+    fprintf(ref_state, "Reference state\nrho_ref = %16.10e\n", parameter.get_real("rho_inf"));
+    fprintf(ref_state, "v_ref = %16.10e\n", parameter.get_real("v_inf"));
+    fprintf(ref_state, "p_ref = %16.10e\n", parameter.get_real("p_inf"));
+    fprintf(ref_state, "T_ref = %16.10e\n", parameter.get_real("T_inf"));
+    fprintf(ref_state, "Ma_ref = %16.10e\n", parameter.get_real("M_inf"));
+    fprintf(ref_state, "Re_unit = %16.10e\n", parameter.get_real("Re_unit"));
+    fprintf(ref_state, "mu_ref = %16.10e\n", parameter.get_real("mu_inf"));
+    fprintf(ref_state, "acoustic_speed_ref = %16.10e\n", parameter.get_real("v_inf") / parameter.get_real("M_inf"));
+    fclose(ref_state);
   }
 }
 
@@ -149,5 +152,9 @@ template
 struct Driver<MixtureModel::FR, Laminar>;
 template
 struct Driver<MixtureModel::FR, SST>;
+template
+struct Driver<MixtureModel::MixtureFraction, Laminar>;
+template
+struct Driver<MixtureModel::MixtureFraction, SST>;
 
 } // cfd

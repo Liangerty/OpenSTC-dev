@@ -109,7 +109,7 @@ __global__ void viscous_flux_gv(cfd::DZone *zone, integer max_extent, cfd::DPara
 
   switch (param->viscous_scheme) {
     case 0: // Inviscid computation
-      break;
+      return;
     case 2:
     default: // 2nd order central difference
       compute_gv_2nd_order<mix_model, turb_method>(idx, zone, &gv[tid * n_var], param);
@@ -138,7 +138,7 @@ __global__ void viscous_flux_hv(cfd::DZone *zone, integer max_extent, cfd::DPara
 
   switch (param->viscous_scheme) {
     case 0: // Inviscid computation
-      break;
+      return;
     case 2:
     default: // 2nd order central difference
       compute_hv_2nd_order<mix_model, turb_method>(idx, zone, &hv[tid * n_var], param);

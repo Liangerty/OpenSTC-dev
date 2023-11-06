@@ -13,15 +13,16 @@ int main(int argc, char *argv[]) {
 
   cfd::Mesh mesh(parameter);
 
-  bool species = parameter.get_bool("species");
+  integer species = parameter.get_int("species");
   bool turbulent_laminar = parameter.get_bool("turbulence");
   integer reaction = parameter.get_int("reaction");
   integer turbulent_method = parameter.get_int("turbulence_method");
   if (!turbulent_laminar) {
+    parameter.update_parameter("turbulence_method", 0);
     turbulent_method = 0;
   }
 
-  if (species) {
+  if (species == 1) {
     // Multiple species
     if (turbulent_method == 1) {
       // RANS
@@ -55,6 +56,30 @@ int main(int argc, char *argv[]) {
         simulate(driver);
       }
     }
+  } else if (species == 2) {
+    // Mixture fraction and mixture fraction variance are solved together with species mixing.
+    if (turbulent_method == 1) {
+      // RANS
+      if (reaction == 0) {
+        // Compute the species mixing, with mixture fraction and mixture fraction variance also solved.
+        cfd::Driver<MixtureModel::MixtureFraction, cfd::SST> driver(parameter, mesh);
+        driver.initialize_computation();
+        simulate(driver);
+      } else if (reaction == 2) {
+        // Flamelet model
+        cfd::Driver<MixtureModel::FL, cfd::SST> driver(parameter, mesh);
+        driver.initialize_computation();
+        simulate(driver);
+      } else {
+        printf("The combination of species model 2 and reaction model %d is not implemented", reaction);
+      }
+    } else {
+      // Laminar
+      cfd::Driver<MixtureModel::MixtureFraction, cfd::Laminar> driver(parameter, mesh);
+      driver.initialize_computation();
+      simulate(driver);
+    }
+
   } else {
     // Air simulation
     if (turbulent_method == 1) {
