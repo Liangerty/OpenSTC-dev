@@ -11,7 +11,7 @@ array  int output_bc   {
 // Settings about monitor points
 // First, specify whether we would monitor the flowfield at some points.
 // If we monitor, the choice would be 1, otherwise 0.
-int if_monitor = 1
+int if_monitor = 0
 
 // If we monitor, specify the file that contains the monitor points
 string monitor_file = input_files/setup/monitor_points.txt
@@ -19,5 +19,5 @@ string monitor_file = input_files/setup/monitor_points.txt
 // If we monitor, specify which variables to monitor
 // The variables are specified by their names
 array string monitor_var {
-    density u   v    w    pressure temperature
+    density u   v    pressure temperature  H2
 }

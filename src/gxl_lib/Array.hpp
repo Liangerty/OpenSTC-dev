@@ -80,7 +80,7 @@ public:
 
   cudaError_t allocate_memory(int dim1, int dim2, int dim3, int n_ghost = 0);
 
-  __device__ T &operator()(const int i, const int j, const int k) {
+  T &operator()(const int i, const int j, const int k) {
     if constexpr (major == Major::ColMajor) {
       return val[k * disp1 + j * disp2 + i + dispt];
     } else {
@@ -88,7 +88,7 @@ public:
     }
   }
 
-  __device__ const T &operator()(const int i, const int j, const int k) const {
+  const T &operator()(const int i, const int j, const int k) const {
     if constexpr (major == Major::ColMajor) {
       return val[k * disp1 + j * disp2 + i + dispt];
     } else {

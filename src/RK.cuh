@@ -52,6 +52,7 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
   TimeSeriesIOManager<mix_model, turb> timeSeriesIOManager(driver.myid, mesh, field, parameter, driver.spec, 0);
 
   Monitor monitor(parameter, driver.spec);
+  const integer if_monitor{parameter.get_int("if_monitor")};
 
   integer step{parameter.get_int("step")};
   integer total_step{parameter.get_int("total_step") + step};
@@ -72,9 +73,6 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
 
   while (!finished) {
     ++step;
-    if (step > total_step) {
-      break;
-    }
 
     // Start a single iteration
     // First, store the value of last step if we need to compute residual
@@ -159,13 +157,18 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
       }
     }
     cudaDeviceSynchronize();
-    if (physical_time > total_simulation_time) {
+    if (physical_time > total_simulation_time || step == total_step) {
       finished = true;
+    }
+    if (if_monitor){
+      monitor.monitor_point(step, physical_time, field);
     }
     if (step % output_file == 0 || finished) {
       ioManager.print_field(step, parameter, physical_time);
       timeSeriesIOManager.print_field(step, parameter, physical_time);
       post_process(driver);
+      if (if_monitor)
+        monitor.output_data();
     }
   }
   delete[] bpg;
