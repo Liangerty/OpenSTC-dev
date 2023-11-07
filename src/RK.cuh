@@ -2,6 +2,7 @@
 
 #include "Driver.cuh"
 #include "FieldOperation.cuh"
+#include "Monitor.cuh"
 
 namespace cfd {
 
@@ -49,6 +50,8 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
   auto &parameter{driver.parameter};
   IOManager<mix_model, turb> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
   TimeSeriesIOManager<mix_model, turb> timeSeriesIOManager(driver.myid, mesh, field, parameter, driver.spec, 0);
+
+  Monitor monitor(parameter, driver.spec);
 
   integer step{parameter.get_int("step")};
   integer total_step{parameter.get_int("total_step") + step};
