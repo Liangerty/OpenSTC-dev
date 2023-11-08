@@ -21,8 +21,8 @@ private:
   int disp1 = 0, disp2 = 0, dispt = 0;
   int sz = 0;
   T *val = nullptr;
-  int ng = 0;
-  int n1 = 0, n2 = 0, n3 = 0;
+//  int ng = 0;
+//  int n1 = 0, n2 = 0, n3 = 0;
 
 public:
 
@@ -51,10 +51,10 @@ public:
 
 template<typename T, Major major>
 inline cudaError_t Array3D<T, major>::allocate_memory(int dim1, int dim2, int dim3, int n_ghost) {
-  ng = n_ghost;
-  n1 = dim1;
-  n2 = dim2;
-  n3 = dim3;
+  int ng = n_ghost;
+  int n1 = dim1;
+  int n2 = dim2;
+  int n3 = dim3;
   if constexpr (major == Major::ColMajor) {
     disp2 = n1 + 2 * ng;
   } else {
@@ -73,8 +73,8 @@ private:
   int disp1 = 0, disp2 = 0, dispt = 0;
   int sz = 0;
   T *val = nullptr;
-  int ng = 0;
-  int n1 = 0, n2 = 0, n3 = 0;
+//  int ng = 0;
+//  int n1 = 0, n2 = 0, n3 = 0;
 
 public:
 
@@ -103,10 +103,10 @@ public:
 
 template<typename T, Major major>
 inline cudaError_t Array3DHost<T, major>::allocate_memory(int dim1, int dim2, int dim3, int n_ghost) {
-  ng = n_ghost;
-  n1 = dim1;
-  n2 = dim2;
-  n3 = dim3;
+  int ng = n_ghost;
+  int n1 = dim1;
+  int n2 = dim2;
+  int n3 = dim3;
   if constexpr (major == Major::ColMajor) {
     disp2 = n1 + 2 * ng;
   } else {
@@ -128,11 +128,11 @@ inline cudaError_t Array3DHost<T, major>::allocate_memory(int dim1, int dim2, in
 template<typename T, Major major = Major::ColMajor>
 class VectorField3D {
 private:
-  int disp1 = 0, disp2 = 0, dispt = 0;
+  int disp1 = 0, disp2 = 0, n4 = 0, dispt = 0;
   int sz = 0;
   T *val = nullptr;
-  int ng = 0;
-  int n1 = 0, n2 = 0, n3 = 0, n4 = 0;
+//  int ng = 0;
+//  int n1 = 0, n2 = 0, n3 = 0;
 
 public:
 
@@ -174,10 +174,10 @@ public:
 template<typename T, Major major>
 inline cudaError_t
 VectorField3D<T, major>::allocate_memory(int dim1, int dim2, int dim3, int dim4, int n_ghost) {
-  ng = n_ghost;
-  n1 = dim1;
-  n2 = dim2;
-  n3 = dim3;
+  int ng = n_ghost;
+  int n1 = dim1;
+  int n2 = dim2;
+  int n3 = dim3;
   n4 = dim4;
   if constexpr (major == Major::RowMajor) {
     disp2 = (n3 + 2 * ng) * n4;
@@ -195,9 +195,9 @@ VectorField3D<T, major>::allocate_memory(int dim1, int dim2, int dim3, int dim4,
 
 template<typename T, Major major = Major::ColMajor>
 class VectorField3DHost {
-  int disp2{0}, disp1{0}, dispt{0};
+  int disp2{0}, disp1{0}, dispt{0}, n4{0}, sz{0};
   T *data_ = nullptr;
-  int ng{0}, n1{0}, n2{0}, n3{0}, n4{0}, sz{0};
+//  int ng{0}, n1{0}, n2{0}, n3{0};
 //  std::vector<T> data_;
 public:
 //  explicit VectorField3DHost(int dim1, int dim2, int dim3, int dim4, int n_ghost);
@@ -247,10 +247,10 @@ public:
 
 template<typename T, Major major>
 void VectorField3DHost<T, major>::resize(int ni, int nj, int nk, int nl, int ngg) {
-  ng = ngg;
-  n1 = ni + 2 * ngg;
-  n2 = nj + 2 * ngg;
-  n3 = nk + 2 * ngg;
+  int ng = ngg;
+  int n1 = ni + 2 * ngg;
+  int n2 = nj + 2 * ngg;
+  int n3 = nk + 2 * ngg;
   n4 = nl;
   sz = n1 * n2 * n3;
   if constexpr (major == Major::RowMajor) {

@@ -61,6 +61,13 @@ struct DZone {
 
   // RK-3 related variables
   ggxl::VectorField3D<real> qn; // The conservative variables from the last step.
+
+  // Statistical operations related array
+  // The array of this part would be split up in more details. Such as for basic variables, for species variables, etc.
+  ggxl::VectorField3D<real> sum12Moment; // The 1st and 2nd order moment of variables, which is added up to a sum here, the average should be conducted later.
+  ggxl::VectorField3D<real> sum34Moment; // The 3rd and 4th order moment of variables.
+  ggxl::VectorField3D<real> sumReynoldsShearPart; // The sum of the shear Reynolds stress. Quantities such as u*v, u*w, v*w are added up here.
+  ggxl::VectorField3D<real> sumYk; // The sum of species mass fractions.
 };
 
 #endif
@@ -86,6 +93,12 @@ struct Field {
   ggxl::VectorField3DHost<real> sv;  // passive scalar variables, including species mass fractions, turbulent variables, mixture fractions, etc.
   ggxl::VectorField3DHost<real> ov;  // other variables used in the computation, e.g., the Mach number, the mut in turbulent computation, scalar dissipation rate in flamelet, etc.
 //  ggxl::VectorField3DHost<real> var_without_ghost_grid; // Some variables that only stored on core grids.
+
+  // The following data is used for collecting statistics, whose memory is only allocated when we activate the statistics.
+  ggxl::VectorField3DHost<real> sum12Moment; // The 1st and 2nd order moment of variables, which is added up to a sum here, the average should be conducted later.
+  ggxl::VectorField3DHost<real> sum34Moment; // The 3rd and 4th order moment of variables.
+  ggxl::VectorField3DHost<real> sumReynoldsShearPart; // The sum of the shear Reynolds stress. Quantities such as u*v, u*w, v*w are added up here.
+  ggxl::VectorField3DHost<real> sumYk; // The sum of species mass fractions.
 
 #ifdef GPU
   DZone *d_ptr = nullptr;

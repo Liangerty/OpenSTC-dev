@@ -19,7 +19,7 @@ list(APPEND src_file
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
   Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh Roe.cuh Roe.cu RK.cuh
-  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh
+  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh StatisticsCollector.cu StatisticsCollector.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu TurbMethod.hpp
   ViscousScheme.cuh
   WallDistance.cuh

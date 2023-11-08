@@ -69,6 +69,16 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
   bv.resize(mx, my, mz, 6, ngg);
   sv.resize(mx, my, mz, n_scalar, ngg);
   ov.resize(mx, my, mz, n_other_var, ngg);
+
+  if (parameter.get_bool("if_collect_statistics")) {
+    // If we need to collect the statistics, we need to allocate memory for the data.
+    sum12Moment.resize(mx, my, mz, 12, 0);
+    sum34Moment.resize(mx, my, mz, 12, 0);
+    sumReynoldsShearPart.resize(mx, my, mz, 3, 0);
+    if (parameter.get_int("species") != 0){
+      sumYk.resize(mx,my,mz,parameter.get_int("n_spec"),0);
+    }
+  }
 }
 
 void cfd::Field::initialize_basic_variables(const Parameter &parameter, const std::vector<Inflow> &inflows,
@@ -121,13 +131,14 @@ void cfd::Field::initialize_basic_variables(const Parameter &parameter, const st
 
 void cfd::Field::setup_device_memory(const Parameter &parameter) {
   h_ptr = new DZone;
-  h_ptr->mx = block.mx, h_ptr->my = block.my, h_ptr->mz = block.mz, h_ptr->ngg = block.ngg;
+  const auto mx{block.mx}, my{block.my}, mz{block.mz}, ngg{block.ngg};
+  h_ptr->mx = mx, h_ptr->my = my, h_ptr->mz = mz, h_ptr->ngg = ngg;
 
-  h_ptr->x.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->x.allocate_memory(mx, my, mz, ngg);
   cudaMemcpy(h_ptr->x.data(), block.x.data(), sizeof(real) * h_ptr->x.size(), cudaMemcpyHostToDevice);
-  h_ptr->y.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->y.allocate_memory(mx, my, mz, ngg);
   cudaMemcpy(h_ptr->y.data(), block.y.data(), sizeof(real) * h_ptr->y.size(), cudaMemcpyHostToDevice);
-  h_ptr->z.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->z.allocate_memory(mx, my, mz, ngg);
   cudaMemcpy(h_ptr->z.data(), block.z.data(), sizeof(real) * h_ptr->z.size(), cudaMemcpyHostToDevice);
 
   auto n_bound{block.boundary.size()};
@@ -143,84 +154,94 @@ void cfd::Field::setup_device_memory(const Parameter &parameter) {
   cudaMalloc(&h_ptr->parface, mem_sz);
   cudaMemcpy(h_ptr->parface, block.parallel_face.data(), mem_sz, cudaMemcpyHostToDevice);
 
-  h_ptr->jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->jac.allocate_memory(mx, my, mz, ngg);
   cudaMemcpy(h_ptr->jac.data(), block.jacobian.data(), sizeof(real) * h_ptr->jac.size(), cudaMemcpyHostToDevice);
-  h_ptr->metric.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->metric.allocate_memory(mx, my, mz, ngg);
   cudaMemcpy(h_ptr->metric.data(), block.metric.data(), sizeof(gxl::Matrix<real, 3, 3, 1>) * h_ptr->metric.size(),
              cudaMemcpyHostToDevice);
 
-  h_ptr->cv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
-  h_ptr->bv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 6, h_ptr->ngg);
+  h_ptr->cv.allocate_memory(mx, my, mz, n_var, ngg);
+  h_ptr->bv.allocate_memory(mx, my, mz, 6, ngg);
   cudaMemcpy(h_ptr->bv.data(), bv.data(), sizeof(real) * h_ptr->bv.size() * 6, cudaMemcpyHostToDevice);
-  h_ptr->bv_last.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 4, 0);
-  h_ptr->vel.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-  h_ptr->acoustic_speed.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-  h_ptr->mach.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-  h_ptr->mul.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-  h_ptr->thermal_conductivity.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+  h_ptr->bv_last.allocate_memory(mx, my, mz, 4, 0);
+  h_ptr->vel.allocate_memory(mx, my, mz, ngg);
+  h_ptr->acoustic_speed.allocate_memory(mx, my, mz, ngg);
+  h_ptr->mach.allocate_memory(mx, my, mz, ngg);
+  h_ptr->mul.allocate_memory(mx, my, mz, ngg);
+  h_ptr->thermal_conductivity.allocate_memory(mx, my, mz, ngg);
 
   const auto n_spec{parameter.get_int("n_spec")};
   const auto n_scalar = parameter.get_int("n_scalar");
-  h_ptr->sv.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_scalar, h_ptr->ngg);
+  h_ptr->sv.allocate_memory(mx, my, mz, n_scalar, ngg);
   cudaMemcpy(h_ptr->sv.data(), sv.data(), sizeof(real) * h_ptr->sv.size() * n_scalar, cudaMemcpyHostToDevice);
-  h_ptr->rho_D.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, h_ptr->ngg);
+  h_ptr->rho_D.allocate_memory(mx, my, mz, n_spec, ngg);
   if (n_spec > 0) {
-    h_ptr->gamma.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-    h_ptr->cp.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+    h_ptr->gamma.allocate_memory(mx, my, mz, ngg);
+    h_ptr->cp.allocate_memory(mx, my, mz, ngg);
     if (parameter.get_int("reaction") == 1) {
       // Finite rate chemistry
       if (const integer chemSrcMethod = parameter.get_int("chemSrcMethod");chemSrcMethod == 1) {
         // EPI
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec * n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(mx, my, mz, n_spec * n_spec, 0);
       } else if (chemSrcMethod == 2) {
         // DA
-        h_ptr->chem_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_spec, 0);
+        h_ptr->chem_src_jac.allocate_memory(mx, my, mz, n_spec, 0);
       }
     } else if (parameter.get_int("reaction") == 2 || parameter.get_int("species") == 2) {
       // Flamelet model
-      h_ptr->scalar_diss_rate.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+      h_ptr->scalar_diss_rate.allocate_memory(mx, my, mz, ngg);
       // Maybe we can also implicitly treat the source term here.
     }
   }
   if (parameter.get_int("turbulence_method") == 1) {
     // RANS method
-    h_ptr->mut.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
-    h_ptr->turb_therm_cond.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+    h_ptr->mut.allocate_memory(mx, my, mz, ngg);
+    h_ptr->turb_therm_cond.allocate_memory(mx, my, mz, ngg);
     if (parameter.get_int("RANS_model") == 2) {
       // SST
-      h_ptr->wall_distance.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, h_ptr->ngg);
+      h_ptr->wall_distance.allocate_memory(mx, my, mz, ngg);
       if (parameter.get_int("turb_implicit") == 1) {
-        h_ptr->turb_src_jac.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 2, 0);
+        h_ptr->turb_src_jac.allocate_memory(mx, my, mz, 2, 0);
       }
     }
   }
 
-  h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 0);
-  h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
-  h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  h_ptr->dq.allocate_memory(mx, my, mz, n_var, 0);
+  h_ptr->inv_spectr_rad.allocate_memory(mx, my, mz, 0);
+  h_ptr->visc_spectr_rad.allocate_memory(mx, my, mz, 0);
   if (parameter.get_int("implicit_method") == 1) { // DPLUR
     // If DPLUR type, when computing the products of convective jacobian and dq, we need 1 layer of ghost grids whose dq=0.
     // Except those inner or parallel communication faces, they need to get the dq from neighbor blocks.
-    h_ptr->dq.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
-    h_ptr->dq0.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
-    h_ptr->dqk.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, 1);
-    h_ptr->inv_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
-    h_ptr->visc_spectr_rad.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
+    h_ptr->dq.allocate_memory(mx, my, mz, n_var, 1);
+    h_ptr->dq0.allocate_memory(mx, my, mz, n_var, 1);
+    h_ptr->dqk.allocate_memory(mx, my, mz, n_var, 1);
+    h_ptr->inv_spectr_rad.allocate_memory(mx, my, mz, 1);
+    h_ptr->visc_spectr_rad.allocate_memory(mx, my, mz, 1);
   }
 //  if (parameter.get_bool("steady")) { // steady simulation
-  h_ptr->dt_local.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
-  h_ptr->unphysical.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 0);
+  h_ptr->dt_local.allocate_memory(mx, my, mz, 0);
+  h_ptr->unphysical.allocate_memory(mx, my, mz, 0);
 //  }
   if (parameter.get_int("inviscid_scheme") == 2) {
     // Roe scheme
-    h_ptr->entropy_fix_delta.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, 1);
+    h_ptr->entropy_fix_delta.allocate_memory(mx, my, mz, 1);
   }
 
   if (!parameter.get_bool("steady")) {
     // unsteady simulation
     if (parameter.get_int("temporal_scheme") == 3) {
       // rk scheme
-      h_ptr->qn.allocate_memory(h_ptr->mx, h_ptr->my, h_ptr->mz, n_var, h_ptr->ngg);
+      h_ptr->qn.allocate_memory(mx, my, mz, n_var, ngg);
+    }
+  }
+
+  if (parameter.get_bool("if_collect_statistics")) {
+    // If we need to collect the statistics, we need to allocate memory for the data.
+    h_ptr->sum12Moment.allocate_memory(mx, my, mz, 12, 0);
+    h_ptr->sum34Moment.allocate_memory(mx, my, mz, 12, 0);
+    h_ptr->sumReynoldsShearPart.allocate_memory(mx, my, mz, 3, 0);
+    if (parameter.get_int("species") != 0){
+      h_ptr->sumYk.allocate_memory(mx,my,mz,parameter.get_int("n_spec"),0);
     }
   }
 

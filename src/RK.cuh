@@ -3,6 +3,7 @@
 #include "Driver.cuh"
 #include "FieldOperation.cuh"
 #include "Monitor.cuh"
+#include "StatisticsCollector.cuh"
 
 namespace cfd {
 
@@ -71,6 +72,10 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
     dt = parameter.get_real("dt");
   }
 
+  const bool if_collect_statistics{parameter.get_bool("if_collect_statistics")};
+  const int collect_statistics_iter_start{parameter.get_int("start_collect_statistics_iter")};
+  StatisticsCollector statistics_collector(parameter, mesh, field);
+
   while (!finished) {
     ++step;
 
@@ -84,9 +89,6 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
 
     // For every iteration, we need to save the conservative variables of the last step.
     for (auto b = 0; b < n_block; ++b) {
-//      const auto mx{mesh[b].mx + ng_1}, my{mesh[b].my + ng_1}, mz{mesh[b].mz + ng_1};
-//      dim3 BPG{mx / tpb.x + 1, my / tpb.y + 1, mz / tpb.z + 1};
-//      compute_cv_from_bv<mix_model, turb><<<BPG, tpb>>>(field[b].d_ptr, param);
       cudaMemcpy(field[b].h_ptr->qn.data(), field[b].h_ptr->cv.data(), field[b].h_ptr->cv.size() * sizeof(real) * n_var,
                  cudaMemcpyDeviceToDevice);
     }
@@ -160,8 +162,11 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
     if (physical_time > total_simulation_time || step == total_step) {
       finished = true;
     }
-    if (if_monitor){
+    if (if_monitor) {
       monitor.monitor_point(step, physical_time, field);
+    }
+    if (if_collect_statistics && step > collect_statistics_iter_start) {
+      statistics_collector.collect_data<mix_model, turb>(param);
     }
     if (step % output_file == 0 || finished) {
       ioManager.print_field(step, parameter, physical_time);

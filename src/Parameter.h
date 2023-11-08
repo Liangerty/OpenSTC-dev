@@ -66,7 +66,7 @@ public:
   ~Parameter() = default;
 
 private:
-  const std::array<std::string, 11> file_names{
+  const std::array<std::string, 12> file_names{
       "./input_files/setup/default_settings.txt",
       "./input_files/setup/0_global_control.txt",   //basic information about the simulation
       "./input_files/setup/1_grid_information.txt", //the information about grid
@@ -77,7 +77,8 @@ private:
       "./input_files/setup/6_post_process.txt",
       "./input_files/setup/7_output_control.txt",
       "./input_files/setup/8_initialization.txt",
-      "./input_files/setup/9_transport_property.txt"
+      "./input_files/setup/9_transport_property.txt",
+      "./input_files/setup/10_statistics.txt"
   };
 
   void read_param_from_file();
