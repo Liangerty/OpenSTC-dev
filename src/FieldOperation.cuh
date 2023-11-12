@@ -211,6 +211,7 @@ __device__ real compute_total_energy_1_point(integer i, integer j, integer k, cf
     total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy -= bv(i, j, k, 4); // (\rho e =\rho h - p)
   } else {
+    total_energy *= bv(i, j, k, 0); // \rho * u_i * u_i * 0.5
     total_energy += bv(i, j, k, 4) / (gamma_air - 1);
   }
   return total_energy;
