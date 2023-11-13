@@ -6,35 +6,39 @@ int groups_init = 2
 // Every simulation must specify a default inflow condition to be used,
 // the name should be the same as the corresponding struct name.
 // All points except those specified to be initialized with a different condition below are initialized by this.
-string  default_init    =   freestream
+string  default_init    =   left
 
 // If the @groups_init is larger than 1, then other conditions may be used for some part to initialize
-struct  init_cond_0     {
-    int         label   =   88   // The part to be initialized differently from above, 8 real numbers are to be specified
-    string      name    =   fuel
-    real        x0      =   0
-    real        x1      =   1
+struct  left     {
+    int         label   =   5    
+real        x0      =   0
+    real        x1      =   0.5
     real        y0      =   -1
-    real        y1      =   0
+    real        y1      =   1
     real        z0      =   -1
     real        z1      =   100
+    real        density =   1
+    real        velocity    =   0
+    real        pressure    =   1
+    int     mole_or_mass    =   0   // Specify whether the fuel composition is given in mole fraction or mass fraction. 0 for mole fraction, 1 for mass fraction
+    real    O2          =   0.21
+    real    N2          =   0.79
 }
 
 // Also, there may be some conditions not given by the bcs, then we can also specify it here
 // We do not tell a label here, and the program would know that it needs to read a new set of condition here
-struct  init_cond_1 {
-    real    x0      =   0
+struct  init_cond_0 {
+    int         label   =   4
+    real    x0      =   0.5
     real    x1      =   1
     real    y0      =   -1
-    real    y1      =   100
+    real    y1      =   1
     real    z0      =   -1
     real    z1      =   100
-    real    mach    =   1
-    real    pressure    =   101222
-    real    temperature =   500
-    real    u       =   1
-    real    v       =   0
-    real    w       =   0
-    real    mole_or_mass    =   1
-    real    H2              =   1
+    real    density =   0.125
+    real    velocity    =   0
+    real    pressure    =   0.1
+    int     mole_or_mass    =   0   // Specify whether the fuel composition is given in mole fraction or mass fraction. 0 for mole fraction, 1 for mass fraction
+    real    O2          =   0.21
+    real    N2          =   0.79
 }

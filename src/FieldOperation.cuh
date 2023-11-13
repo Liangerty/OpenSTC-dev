@@ -33,6 +33,7 @@ __device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone
     total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy -= bv(i, j, k, 4); // (\rho e =\rho h - p)
   } else {
+    total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy += bv(i, j, k, 4) / (gamma_air - 1);
   }
   zone->cv(i, j, k, 4) = total_energy;
