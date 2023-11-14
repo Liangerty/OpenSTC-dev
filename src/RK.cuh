@@ -13,7 +13,7 @@ __device__ constexpr real b[3]{0.0, 0.25, 2.0 / 3.0};
 __device__ constexpr real c[3]{1.0, 0.25, 2.0 / 3.0};
 }
 
-template<MixtureModel mix_model, TurbMethod turb_method>
+template<MixtureModel mix_model, class turb_method>
 __global__ void update_cv_and_bv_rk(cfd::DZone *zone, DParameter *param, real dt, integer rk);
 
 template<MixtureModel mix_model, class turb>

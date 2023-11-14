@@ -3,26 +3,22 @@
 #include "Define.h"
 #include "Mesh.h"
 
-namespace cfd {
+namespace cfd{
 struct DZone;
 struct DParameter;
 
 template<MixtureModel mix_model>
-void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+void HLLC_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
                                const Parameter &parameter);
 
 template<MixtureModel mix_model>
 __global__ void
-Roe_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
+HLLC_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
 
 template<MixtureModel mix_model>
 __device__ void
-Roe_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
-                            const real *jac, const real *entropy_fix_delta, integer direction);
-
-template<MixtureModel mix_model>
-__global__ void
-compute_entropy_fix_delta(cfd::DZone *zone, DParameter *param);
+HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
+                            const real *jac, integer direction);
 
 template<MixtureModel mixtureModel>
 __device__ void

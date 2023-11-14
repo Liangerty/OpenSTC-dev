@@ -54,6 +54,7 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       // RANS
       n_scalar_transported += parameter.get_int("n_turb");
       n_scalar += parameter.get_int("n_turb");
+      i_turb_cv = 5;
       ++n_other_var; // mut
     }
   }

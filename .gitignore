@@ -1077,3 +1077,40 @@
 /output/field/time_series/flowfield_0.290000s.plt
 /output/field/time_series/flowfield_0.300000s.plt
 /output/field/t=0.2s.lay
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/codemodel-v2-72769b432456e29f71ef.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/index-2023-11-14T08-03-41-0605.json
+/cmake-build-debug-visual-studio/.cmake/api/v1/reply/target-openstc-Debug-2620b90ef65f104921c6.json
+/cmake-build-debug-visual-studio/src/CMakeFiles/openstc.dir/HLLC.cu.obj
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/codemodel-v2-838c436eba28b37c368e.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/index-2023-11-14T08-03-41-0585.json
+/cmake-build-release-visual-studio/.cmake/api/v1/reply/target-openstc-Release-2a35994c9ed24b3e20fc.json
+/cmake-build-release-visual-studio/src/CMakeFiles/openstc.dir/HLLC.cu.obj
+/input_files/backup/boundary_condition/boundary   0.txt
+/input_files/backup/boundary_condition/inner   0.txt
+/input_files/backup/boundary_condition/parallel   0.txt
+/input_files/backup/chemistry/air.inp
+/input_files/backup/chemistry/combustion_mechanism.inp
+/input_files/backup/chemistry/combustion_mechanism_17s26r.inp
+/input_files/backup/chemistry/combustion_mechanism_copy.inp
+/input_files/backup/chemistry/combustion_mechanism_mixing.inp
+/input_files/backup/chemistry/erf.txt
+/input_files/backup/chemistry/flamelet-lib-zzprimx.txt
+/input_files/backup/chemistry/H2_mech.inp
+/input_files/backup/chemistry/H2_mech_mixing.inp
+/input_files/backup/chemistry/therm.dat
+/input_files/backup/chemistry/therm-1.dat
+/input_files/backup/chemistry/tran.dat
+/input_files/backup/grid/grid   0.grd
+/input_files/backup/setup/0_global_control.txt
+/input_files/backup/setup/1_grid_information.txt
+/input_files/backup/setup/2_scheme.txt
+/input_files/backup/setup/3_species_reactions.txt
+/input_files/backup/setup/4_laminar_turbulent.txt
+/input_files/backup/setup/5_boundary_condition.txt
+/input_files/backup/setup/6_post_process.txt
+/input_files/backup/setup/7_output_control.txt
+/input_files/backup/setup/8_initialization.txt
+/input_files/backup/setup/9_transport_property.txt
+/input_files/backup/setup/10_statistics.txt
+/input_files/backup/setup/default_settings.txt
+/input_files/backup/setup/monitor_points.txt

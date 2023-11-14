@@ -35,6 +35,9 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
     case 2: // Roe
       Roe_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
       break;
+//    case 4: // HLLC
+//      HLLC_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
+//      break;
     case 3: // AUSM+
     default:
       AUSMP_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
