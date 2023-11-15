@@ -13,9 +13,9 @@ real dt = 1e-5                      // In unsteady simulation, the time step sho
 real total_simulation_time = 0.3    // In unsteady simulation, how long physical time to be simulated
 int     inner_iteration = 20
 // Next, the inviscid discretization is declared.
-// Tag for inviscid schemes. 2-Roe; 3-AUSM+;
+// Tag for inviscid schemes. 2-Roe; 3-AUSM+; 4-HLLC
 // Tags that are larger than 10 will use conservative variables to reconstruct. 51-WENO5(component); 52-WENO5(characteristic); 71-WENO7(component); 72-WENO7(characteristic)
-int  inviscid_scheme = 3
+int  inviscid_scheme = 4
 // Tag for reconstruction method. 1-1st_order, 2-MUSCL, 3-NND2
 int  reconstruction = 2
 // Tag for limiters. 0-minmod

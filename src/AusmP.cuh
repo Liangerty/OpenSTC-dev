@@ -21,7 +21,7 @@ template<MixtureModel mix_model>
 void AUSMP_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
                                  const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
-  constexpr integer block_dim = 128;
+  constexpr integer block_dim = 64;
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
   auto shared_mem = (block_dim * n_var // fc
                      + n_computation_per_block * (n_var + 3 + 1)) * sizeof(real); // pv[n_var]+metric[3]+jacobian

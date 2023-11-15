@@ -14,19 +14,19 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
   // turbulent variable in sv array is always located after mass fractions, thus its label is always n_spec;
   // however, for conservative array, it may depend on whether the employed method is flamelet or finite rate.
   // This label, "i_turb_cv", is introduced to label the index of the first turbulent variable in the conservative variable array.
-  integer i_turb_cv{0}, i_fl_cv{0};
+  integer i_turb_cv{5}, i_fl_cv{0};
 
   if (parameter.get_int("species") == 1) {
     n_scalar += parameter.get_int("n_spec");
     if (parameter.get_int("reaction") != 2) {
       // Mixture / Finite rate chemistry
       n_scalar_transported += parameter.get_int("n_spec");
-      i_turb_cv = parameter.get_int("n_spec") + 5;
+      i_turb_cv += parameter.get_int("n_spec");
     } else {
       // Flamelet model
       n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
       n_scalar += 2;
-      i_turb_cv = 5;
+//      i_turb_cv = 5;
       i_fl_cv = 5 + parameter.get_int("n_turb");
       ++n_other_var; // scalar dissipation rate
     }
@@ -36,14 +36,14 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       // Mixture with mixture fraction and variance solved.
       n_scalar_transported += parameter.get_int("n_spec") + 2;
       n_scalar += 2;
-      i_turb_cv = parameter.get_int("n_spec") + 5;
+      i_turb_cv += parameter.get_int("n_spec");
       i_fl_cv = i_turb_cv + parameter.get_int("n_turb");
       ++n_other_var; // scalar dissipation rate
     } else {
       // Flamelet model
       n_scalar_transported += 2; // the mixture fraction and the variance of mixture fraction
       n_scalar += 2;
-      i_turb_cv = 5;
+//      i_turb_cv = 5;
       i_fl_cv = 5 + parameter.get_int("n_turb");
       ++n_other_var; // scalar dissipation rate
     }
@@ -54,7 +54,7 @@ cfd::Field::Field(Parameter &parameter, const Block &block_in) : block(block_in)
       // RANS
       n_scalar_transported += parameter.get_int("n_turb");
       n_scalar += parameter.get_int("n_turb");
-      i_turb_cv = 5;
+//      i_turb_cv = 5;
       ++n_other_var; // mut
     }
   }
