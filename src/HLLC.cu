@@ -207,8 +207,13 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
   auto fci = &fc[tid * n_var];
   const real jac_ave{0.5 * (jac[i_shared] + jac[i_shared + 1])};
 
+  real gamma_l{gamma_air}, gamma_r{gamma_air};
+  if constexpr (mix_model != MixtureModel::Air) {
+    gamma_l = pv_l[n_reconstruct + 1];
+    gamma_r = pv_r[n_reconstruct + 1];
+  }
   const real Ul{kx * pv_l[1] + ky * pv_l[2] + kz * pv_l[3]};
-  const real cl{std::sqrt(pv_l[n_reconstruct + 1] * pv_l[4] / pv_l[0])};
+  const real cl{std::sqrt(gamma_l * pv_l[4] / pv_l[0])};
   const real sl{min(Ul / gradK - cl, U_tilde_bar - c_tilde)};
   if (sl >= 0) {
     // The flow is supersonic from left to right, the flux is computed from the left value.
@@ -225,7 +230,7 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
   }
 
   const real Ur{kx * pv_r[1] + ky * pv_r[2] + kz * pv_r[3]};
-  const real cr{std::sqrt(pv_r[n_reconstruct + 1] * pv_r[4] / pv_r[0])};
+  const real cr{std::sqrt(gamma_r * pv_r[4] / pv_r[0])};
   const real sr{max(Ur / gradK + cr, U_tilde_bar + c_tilde)};
   if (sr < 0) {
     // The flow is supersonic from right to left, the flux is computed from the right value.
@@ -247,27 +252,27 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
   const real pm{pv_l[0] * (sl - Ul / gradK) * (sm - Ul / gradK) + pv_l[4]};
   if (sm >= 0) {
     // Left star region, F_{*L}
-    const real pCoeff{jac_ave / (sl - sm)};
+    const real pCoeff{1.0 / (sl - sm)};
     const real QlCoeff{jac_ave * pCoeff * sm * (sl * gradK - Ul) * pv_l[0]};
     fci[0] = QlCoeff;
-    const real dP{(sl * pm - sm * pv_l[4]) * pCoeff};
+    const real dP{(sl * pm - sm * pv_l[4]) * pCoeff * jac_ave};
     fci[1] = QlCoeff * pv_l[1] + dP * kx;
     fci[2] = QlCoeff * pv_l[2] + dP * ky;
     fci[3] = QlCoeff * pv_l[3] + dP * kz;
-    fci[4] = QlCoeff * pv_l[n_reconstruct] / pv_l[0] + pCoeff * (sl * pm * sm * gradK - sm * pv_l[4] * Ul);
+    fci[4] = QlCoeff * pv_l[n_reconstruct] / pv_l[0] + pCoeff * jac_ave * (sl * pm * sm * gradK - sm * pv_l[4] * Ul);
     for (integer l = 5; l < n_var; ++l) {
       fci[l] = QlCoeff * pv_l[l];
     }
   } else {
     // Right star region, F_{*R}
-    const real pCoeff{jac_ave / (sr - sm)};
+    const real pCoeff{1.0 / (sr - sm)};
     const real QrCoeff{jac_ave * pCoeff * sm * (sr * gradK - Ur) * pv_r[0]};
     fci[0] = QrCoeff;
-    const real dP{(sr * pm - sm * pv_r[4]) * pCoeff};
+    const real dP{(sr * pm - sm * pv_r[4]) * pCoeff * jac_ave};
     fci[1] = QrCoeff * pv_r[1] + dP * kx;
     fci[2] = QrCoeff * pv_r[2] + dP * ky;
     fci[3] = QrCoeff * pv_r[3] + dP * kz;
-    fci[4] = QrCoeff * pv_r[n_reconstruct] / pv_r[0] + pCoeff * (sr * pm * sm * gradK - sm * pv_r[4] * Ur);
+    fci[4] = QrCoeff * pv_r[n_reconstruct] / pv_r[0] + pCoeff * jac_ave * (sr * pm * sm * gradK - sm * pv_r[4] * Ur);
     for (integer l = 5; l < n_var; ++l) {
       fci[l] = QrCoeff * pv_r[l];
     }
@@ -275,18 +280,30 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
 }
 
 template
-void HLLC_compute_inviscid_flux<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter);
+void
+HLLC_compute_inviscid_flux<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                                              const Parameter &parameter);
+
 template
-void HLLC_compute_inviscid_flux<MixtureModel::Mixture>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter);
+void HLLC_compute_inviscid_flux<MixtureModel::Mixture>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                       integer n_var, const Parameter &parameter);
+
 template
-void HLLC_compute_inviscid_flux<MixtureModel::FR>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter);
+void
+HLLC_compute_inviscid_flux<MixtureModel::FR>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                                             const Parameter &parameter);
+
 template<>
-void HLLC_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter) {
+void
+HLLC_compute_inviscid_flux<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                                             const Parameter &parameter) {
   printf("HLLC_compute_inviscid_flux<MixtureModel::FL> is not implemented yet.\n");
   MpiParallel::exit();
 }
+
 template<>
-void HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter) {
+void HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DParameter *param,
+                                                               integer n_var, const Parameter &parameter) {
   printf("HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction> is not implemented yet.\n");
   MpiParallel::exit();
 }
