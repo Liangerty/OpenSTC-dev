@@ -17,8 +17,8 @@ HLLC_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_e
 
 template<MixtureModel mix_model>
 __device__ void
-HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, real *metric,
-                            const real *jac, integer direction);
+HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, const real *metric,
+                             const real *jac);
 
 template<MixtureModel mixtureModel>
 __device__ void
