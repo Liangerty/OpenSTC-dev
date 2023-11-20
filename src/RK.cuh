@@ -175,6 +175,11 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
       if (if_monitor)
         monitor.output_data();
     }
+    auto err=cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("Error: %s\n", cudaGetErrorString(err));
+      MpiParallel::exit();
+    }
   }
   delete[] bpg;
 }

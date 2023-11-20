@@ -90,4 +90,11 @@ private:
 
   static std::map<std::string, std::variant<std::string, integer, real>> read_struct(std::ifstream &file);
 };
+
+/**
+ * After all setup files are read in, the info about the simulation should be set.
+ * In this function, we set some parameters that have been known and print them to the screen.
+ * @param parameter the parameter class which would be used throughout the simulation.
+ */
+void setup_and_print_solution_info(Parameter& parameter);
 }

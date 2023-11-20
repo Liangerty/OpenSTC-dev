@@ -165,3 +165,7 @@ std::map<std::string, std::variant<std::string, integer, real>> cfd::Parameter::
   }
   return struct_to_read;
 }
+
+void cfd::setup_and_print_solution_info(cfd::Parameter &parameter) {
+
+}
