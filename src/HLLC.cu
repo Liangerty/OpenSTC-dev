@@ -1,3 +1,4 @@
+#include "AWENO.cuh"
 #include "HLLC.cuh"
 #include "Parameter.h"
 #include "Field.h"
@@ -14,7 +15,7 @@ void HLLC_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter
                                 const Parameter &parameter) {
   const integer extent[3]{block.mx, block.my, block.mz};
 
-  constexpr integer block_dim = 128;
+  constexpr integer block_dim = 64;
   const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
   auto shared_mem = (block_dim * n_var // fc
                      + n_computation_per_block * (n_var + 1)) * sizeof(real) // pv[n_var]+jacobian
@@ -147,7 +148,15 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
       7 + MAX_SPEC_NUMBER + 4; // rho,u,v,w,p,Y_{1...Ns},(k,omega,z,z_prime),E,gamma
   real pv_l[n_reconstruction_max], pv_r[n_reconstruction_max];
   const integer i_shared = tid - 1 + zone->ngg;
-  reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, zone, param);
+  reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, param);
+
+  compute_hllc_flux<mix_model>(pv_l, pv_r, param, tid, metric, jac, fc, i_shared);
+}
+
+template<MixtureModel mix_model>
+__device__ void
+compute_hllc_flux(const real *pv_l, const real *pv_r, DParameter *param, integer tid, const real *metric,
+                  const real *jac, real *fc, integer i_shared) {
 
   const integer n_var = param->n_var;
   integer n_reconstruct{n_var};
@@ -279,6 +288,7 @@ HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *par
   }
 }
 
+// Template Instantiations
 template
 void
 HLLC_compute_inviscid_flux<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
@@ -307,4 +317,8 @@ void HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &bloc
   printf("HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction> is not implemented yet.\n");
   MpiParallel::exit();
 }
+
+template __device__ void
+compute_hllc_flux<MixtureModel::Air>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
+                                     const real *metric, const real *jac, real *fc, integer i_shared);
 }

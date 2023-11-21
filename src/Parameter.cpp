@@ -27,11 +27,7 @@ void cfd::Parameter::read_param_from_file() {
 
   int_parameters.emplace("step", 0);
 
-  int_parameters.emplace("ngg", 2);
-  integer inviscid_tag = get_int("inviscid_scheme");
-  if (inviscid_tag / 10 == 5) {
-    update_parameter("ngg", 3);
-  }
+  deduce_known_info();
 
   update_parameter("n_var", 5);
   update_parameter("n_turb", 0);
@@ -166,6 +162,49 @@ std::map<std::string, std::variant<std::string, integer, real>> cfd::Parameter::
   return struct_to_read;
 }
 
-void cfd::setup_and_print_solution_info(cfd::Parameter &parameter) {
+void cfd::Parameter::deduce_known_info() {
+  // Ghost grid number is decided from the inviscid scheme and viscous scheme.
+  // For common 2nd order schemes, we need 2 ghost grids.
+  // Here, because we now only implement 2nd order central difference for viscous flux, we need 2 ghost grids.
+  // The main concern for the number of ghost grids is the inviscid flux, which in turn is decided from the reconstruction method.
+  integer ngg{2};
+  integer reconstruction_scheme = get_int("reconstruction");
+  switch (reconstruction_scheme) {
+    case 4: // WENO5
+      ngg = 3;
+      break;
+    case 5: // WENO7
+      ngg = 4;
+      break;
+    default: // 1st, MUSCL, NND2, etc.
+      break;
+  }
+  update_parameter("ngg", ngg);
 
+  // Next, based on the reconstruction scheme and inviscid flux method, we re-assign a new field called "inviscid_tag"
+  // to identify the method to be used.
+  // 2-Roe, 3-AUSM+, 4-HLLC. These are used by default if the corresponding reconstruction methods are 1stOrder, MUSCL, or NND2.
+  // Once the reconstruction method is changed to high-order ones, such as WENO5, WENO7, etc., we would use a new tag to identify
+  // them. Because, the reconstructed variables would be conservative variables, and there may be additional operations,
+  // such as characteristic reconstruction, high-order central difference, etc.
+  // Summary: 2-Roe, 3-AUSM+, 4-HLLC, 14-HLLC+WENO
+  integer inviscid_tag{get_int("inviscid_scheme")};
+  if (reconstruction_scheme == 4 || reconstruction_scheme == 5) {
+    // WENO reconstructions
+    switch (inviscid_tag) {
+      case 2: // Roe + WENO, which is not supported yet.
+        printf("Roe + WENO is not supported yet.\n");
+        MpiParallel::exit();
+      case 3: // AUSM + WENO, which is not supported yet.
+        printf("AUSM + WENO is not supported yet.\n");
+        MpiParallel::exit();
+      case 4: // HLLC + WENO, currently assigned by tag 14.
+        inviscid_tag = 14;
+        break;
+      default:
+        printf("??? + WENO is not supported yet.\n");
+        MpiParallel::exit();
+    }
+  }
+  update_parameter("inviscid_tag", inviscid_tag);
 }

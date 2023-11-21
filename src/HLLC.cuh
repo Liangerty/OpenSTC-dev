@@ -3,13 +3,13 @@
 #include "Define.h"
 #include "Mesh.h"
 
-namespace cfd{
+namespace cfd {
 struct DZone;
 struct DParameter;
 
 template<MixtureModel mix_model>
 void HLLC_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
-                               const Parameter &parameter);
+                                const Parameter &parameter);
 
 template<MixtureModel mix_model>
 __global__ void
@@ -19,6 +19,11 @@ template<MixtureModel mix_model>
 __device__ void
 HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, const real *metric,
                              const real *jac);
+
+template<MixtureModel mix_model>
+__device__ void
+compute_hllc_flux(const real *pv_l, const real *pv_r, DParameter *param, integer tid, const real *metric,
+                  const real *jac, real *fc, integer i_shared);
 
 template<MixtureModel mixtureModel>
 __device__ void

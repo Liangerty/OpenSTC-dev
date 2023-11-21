@@ -257,7 +257,7 @@ cfd::Block::Block(const integer _mx, const integer _my, const integer _mz,
       metric{mx, my, mz, _ngg} {}
 
 void cfd::Block::compute_jac_metric(integer myid) {
-  // First the inner part is computed, excluding the boundaries and ghost grids
+  // First, the inner part is computed, excluding the boundaries and ghost grids
   for (integer i = 1; i < mx - 1; ++i) {
     for (integer j = 1; j < my - 1; ++j) {
       integer k_min{1}, k_max{mz - 1};

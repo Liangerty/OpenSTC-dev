@@ -155,7 +155,7 @@ AUSMP_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *pa
       7 + MAX_SPEC_NUMBER + 4 + 2; // rho,u,v,w,p,Y_{1...Ns},(k,omega,z,z_prime),E,gamma
   real pv_l[n_reconstruction_max], pv_r[n_reconstruction_max];
   const integer i_shared = tid - 1 + zone->ngg;
-  reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, zone, param);
+  reconstruction<mix_model>(pv, pv_l, pv_r, i_shared, param);
 
   auto metric_l = &metric[i_shared * 3], metric_r = &metric[(i_shared + 1) * 3];
   auto jac_l = jac[i_shared], jac_r = jac[i_shared + 1];
