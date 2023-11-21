@@ -320,38 +320,42 @@ __device__ double2 WENO5(const real *L, const real *cv, integer n_var, integer i
   }
 
   // Reconstruct the "v-" with v[-2:2]
-  real v0{0.125 * (3 * v[2] + 6 * v[3] - v[4])};
+  real v0{0.125 * (3 * v[0] - 10 * v[1] + 15 * v[2])};
   real v1{0.125 * (-v[1] + 6 * v[2] + 3 * v[3])};
-  real v2{0.125 * (3 * v[0] - 10 * v[1] + 15 * v[2])};
+  real v2{0.125 * (3 * v[2] + 6 * v[3] - v[4])};
   constexpr real oneThird{1.0 / 3.0};
-  real beta0{oneThird * (10 * v[2] * v[2] - 31 * v[2] * v[3] + 25 * v[3] * v[3] + 11 * v[2] * v[4] + 4 * v[4] * v[4] -
-                         19 * v[4] * v[3])};
-  real beta1{oneThird * (4 * v[1] * v[1] - 13 * v[1] * v[2] + 13 * v[2] * v[2] + 5 * v[1] * v[3] + 4 * v[3] * v[3] -
-                         13 * v[3] * v[2])};
-  real beta2{oneThird * (10 * v[2] * v[2] - 31 * v[2] * v[1] + 25 * v[1] * v[1] + 11 * v[2] * v[0] + 4 * v[0] * v[0] -
-                         19 * v[0] * v[1])};
+  real beta0{oneThird * (4 * v[0] * v[0] - 19 * v[0] * v[1] + 25 * v[1] * v[1] + 11 * v[0] * v[2] - 31 * v[2] * v[1] +
+                         10 * v[2] * v[2])};
+  real beta1{oneThird * (4 * v[1] * v[1] - 13 * v[1] * v[2] + 13 * v[2] * v[2] + 5 * v[1] * v[3] -
+                         13 * v[2] * v[3] + 4 * v[3] * v[3])};
+  real beta2{oneThird * (10 * v[2] * v[2] - 31 * v[2] * v[3] + 25 * v[3] * v[3] + 11 * v[2] * v[4] -
+                         19 * v[3] * v[4] + 4 * v[4] * v[4])};
   constexpr real eps{1e-6};
-  constexpr real d0{5.0 / 16}, d1{5.0 / 8}, d2{1.0 / 16};
-  real a0{d0 / ((eps + beta0) * (eps + beta0))};
-  real a1{d1 / ((eps + beta1) * (eps + beta1))};
-  real a2{d2 / ((eps + beta2) * (eps + beta2))};
+  constexpr real oneDiv16{1.0 / 16}, fiveDiv8{5.0 / 8}, fiveDiv16{5.0 / 16};
+  real a0{oneDiv16 / ((eps + beta0) * (eps + beta0))};
+  real a1{fiveDiv8 / ((eps + beta1) * (eps + beta1))};
+  real a2{fiveDiv16 / ((eps + beta2) * (eps + beta2))};
   real sum_a{a0 + a1 + a2};
   real omega0{a0 / sum_a}, omega1{a1 / sum_a}, omega2{a2 / sum_a};
   const real v_minus{omega0 * v0 + omega1 * v1 + omega2 * v2};
 
   // Reconstruct the "v+" with v[-1:3]
-  v0 = 0.125 * (15.0 * v[3] - 10 * v[4] + 3 * v[5]);
-  v1 = 0.125 * (3 * v[2] + 6 * v[3] - v[4]);
-  v2 = 0.125 * (-v[1] + 6 * v[2] + 3 * v[3]);
-  beta0 = oneThird * (10 * v[3] * v[3] - 31 * v[3] * v[4] + 25 * v[4] * v[4] + 11 * v[3] * v[5] + 4 * v[5] * v[5] -
-                      19 * v[4] * v[5]);
-  beta1 = oneThird * (4 * v[2] * v[2] - 13 * v[2] * v[3] + 13 * v[3] * v[3] + 5 * v[2] * v[4] + 4 * v[4] * v[4] -
-                      13 * v[3] * v[4]);
-  beta2 = oneThird * (10 * v[3] * v[3] - 31 * v[2] * v[3] + 25 * v[2] * v[2] + 11 * v[3] * v[1] + 4 * v[1] * v[1] -
-                      19 * v[2] * v[1]);
-  a0 = d0 / ((eps + beta0) * (eps + beta0));
-  a1 = d1 / ((eps + beta1) * (eps + beta1));
-  a2 = d2 / ((eps + beta2) * (eps + beta2));
+  v0 = v1;
+  v1 = v2;
+  v2 = 0.125 * (15 * v[3] - 10 * v[4] + 3 * v[5]);
+  beta0 = oneThird * (4 * v[1] * v[1] - 19 * v[1] * v[2] + 25 * v[2] * v[2] + 11 * v[1] * v[3] - 31 * v[3] * v[2] +
+                      10 * v[3] * v[3]);
+  beta1 = oneThird * (4 * v[2] * v[2] - 13 * v[2] * v[3] + 13 * v[3] * v[3] + 5 * v[2] * v[4] -
+                      13 * v[3] * v[4] + 4 * v[4] * v[4]);
+  beta2 = oneThird * (10 * v[3] * v[3] - 31 * v[3] * v[4] + 25 * v[4] * v[4] + 11 * v[3] * v[5] -
+                      19 * v[4] * v[5] + 4 * v[5] * v[5]);
+//  beta0 = beta1;
+//  beta1 = beta2;
+//  beta2 = oneThird * (22 * v[3] * v[3] - 73 * v[3] * v[4] + 61 * v[4] * v[4] + 29 * v[3] * v[5] -
+//                      49 * v[4] * v[5] + 10 * v[5] * v[5]);
+  a0 = fiveDiv16 / ((eps + beta0) * (eps + beta0));
+  a1 = fiveDiv8 / ((eps + beta1) * (eps + beta1));
+  a2 = oneDiv16 / ((eps + beta2) * (eps + beta2));
   sum_a = a0 + a1 + a2;
   omega0 = a0 / sum_a;
   omega1 = a1 / sum_a;
