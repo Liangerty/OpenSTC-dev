@@ -18,6 +18,9 @@ void AWENO_HLLC<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParame
 
   // First, we compute the HLLC flux as other cases, but the variables are interpolated by WENO scheme and in characteristic space.
   HLLCPart<MixtureModel::Air>(block, zone, param, n_var, parameter);
+
+  // Next, we add the residual part to account for high-order terms with central difference
+  CDSPart<MixtureModel::Air>(block, zone, param, n_var, parameter);
 }
 
 template<MixtureModel mix_model>
@@ -126,57 +129,57 @@ AWENO_interpolation<MixtureModel::Air>(const real *cv, real *pv_l, real *pv_r, i
 
   // Compute the right characteristic matrix
   gxl::Matrix<real, 5, 5> R;
-  R(0,0)=1.0;
-  R(0,1)=kx;
-  R(0,2)=ky;
-  R(0,3)=kz;
-  R(0,4)=1.0;
-  R(1,0)=um-kx*cm;
-  R(1,1)=kx*um;
-  R(1,2)=ky*um-kz*cm;
-  R(1,3)=kz*um+ky*cm;
-  R(1,4)=um+kx*cm;
-  R(2,0)=vm-ky*cm;
-  R(2,1)=kx*vm+kz*cm;
-  R(2,2)=ky*vm;
-  R(2,3)=kz*vm-kx*cm;
-  R(2,4)=vm+ky*cm;
-  R(3,0)=wm-kz*cm;
-  R(3,1)=kx*wm-ky*cm;
-  R(3,2)=ky*wm+kx*cm;
-  R(3,3)=kz*wm;
-  R(3,4)=wm+kz*cm;
-  R(4,0)=hm-Uk_bar*cm;
-  R(4,1)=kx*alpha/gm1+(kz*vm-ky*wm)*cm;
-  R(4,2)=ky*alpha/gm1+(kx*wm-kz*um)*cm;
-  R(4,3)=kz*alpha/gm1+(ky*um-kx*vm)*cm;
-  R(4,4)=hm+Uk_bar*cm;
+  R(0, 0) = 1.0;
+  R(0, 1) = kx;
+  R(0, 2) = ky;
+  R(0, 3) = kz;
+  R(0, 4) = 1.0;
+  R(1, 0) = um - kx * cm;
+  R(1, 1) = kx * um;
+  R(1, 2) = ky * um - kz * cm;
+  R(1, 3) = kz * um + ky * cm;
+  R(1, 4) = um + kx * cm;
+  R(2, 0) = vm - ky * cm;
+  R(2, 1) = kx * vm + kz * cm;
+  R(2, 2) = ky * vm;
+  R(2, 3) = kz * vm - kx * cm;
+  R(2, 4) = vm + ky * cm;
+  R(3, 0) = wm - kz * cm;
+  R(3, 1) = kx * wm - ky * cm;
+  R(3, 2) = ky * wm + kx * cm;
+  R(3, 3) = kz * wm;
+  R(3, 4) = wm + kz * cm;
+  R(4, 0) = hm - Uk_bar * cm;
+  R(4, 1) = kx * alpha / gm1 + (kz * vm - ky * wm) * cm;
+  R(4, 2) = ky * alpha / gm1 + (kx * wm - kz * um) * cm;
+  R(4, 3) = kz * alpha / gm1 + (ky * um - kx * vm) * cm;
+  R(4, 4) = hm + Uk_bar * cm;
 
   // Project the "v+" and "v-" back to physical space
-  real ql[5],qr[5];
-  for (integer m=0;m<5;++m){
-    ql[m]=0;
-    qr[m]=0;
-    for(integer n=0;n<5;++n){
-      ql[m]+=R(m,n)*v_minus[n];
-      qr[m]+=R(m,n)*v_plus[n];
+  real ql[5], qr[5];
+  for (integer m = 0; m < 5; ++m) {
+    ql[m] = 0;
+    qr[m] = 0;
+    for (integer n = 0; n < 5; ++n) {
+      ql[m] += R(m, n) * v_minus[n];
+      qr[m] += R(m, n) * v_plus[n];
     }
   }
 
   // Compute the basic variables from conservative variables
-  pv_l[0]=ql[0];
-  pv_l[1]=ql[1]/ql[0];
-  pv_l[2]=ql[2]/ql[0];
-  pv_l[3]=ql[3]/ql[0];
-  pv_l[4]=gm1*(ql[4]-0.5*(pv_l[1]*pv_l[1]+pv_l[2]*pv_l[2]+pv_l[3]*pv_l[3])*ql[0]);
-  pv_l[n_var]=ql[4];
+  pv_l[0] = ql[0];
+  pv_l[1] = ql[1] / ql[0];
+  pv_l[2] = ql[2] / ql[0];
+  pv_l[3] = ql[3] / ql[0];
+  pv_l[4] = gm1 * (ql[4] - 0.5 * (pv_l[1] * pv_l[1] + pv_l[2] * pv_l[2] + pv_l[3] * pv_l[3]) * ql[0]);
+  pv_l[n_var] = ql[4];
 
-  pv_r[0]=qr[0];
-  pv_r[1]=qr[1]/qr[0];
-  pv_r[2]=qr[2]/qr[0];
-  pv_r[3]=qr[3]/qr[0];
-  pv_r[4]=gm1*(qr[4]-0.5*(pv_r[1]*pv_r[1]+pv_r[2]*pv_r[2]+pv_r[3]*pv_r[3])*qr[0]);
-  pv_r[n_var]=qr[4];
+  pv_r[0] = qr[0];
+  pv_r[1] = qr[1] / qr[0];
+  pv_r[2] = qr[2] / qr[0];
+  pv_r[3] = qr[3] / qr[0];
+  pv_r[4] = gm1 * (qr[4] - 0.5 * (pv_r[1] * pv_r[1] + pv_r[2] * pv_r[2] + pv_r[3] * pv_r[3]) * qr[0]);
+  pv_r[n_var] = qr[4];
 }
 
 template<MixtureModel mix_model>
@@ -358,6 +361,90 @@ __device__ double2 WENO5(const real *L, const real *cv, integer n_var, integer i
   return double2{v_minus, v_plus};
 }
 
+template<MixtureModel mix_model>
+__global__ void CDSPart1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
+  integer labels[3]{0, 0, 0};
+  labels[direction] = 1;
+  const auto tid = (integer) (threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2]);
+  const auto block_dim = (integer) (blockDim.x * blockDim.y * blockDim.z);
+  const auto ngg{zone->ngg};
+//  const integer n_point = block_dim + 2 * ngg - 1;
+
+  integer idx[3];
+  idx[0] = (integer) ((blockDim.x - 2 * ngg * labels[0]) * blockIdx.x + threadIdx.x);
+  idx[1] = (integer) ((blockDim.y - 2 * ngg * labels[1]) * blockIdx.y + threadIdx.y);
+  idx[2] = (integer) ((blockDim.z - 2 * ngg * labels[2]) * blockIdx.z + threadIdx.z);
+  idx[direction] -= ngg;
+  if (idx[direction] > max_extent + 2) return;
+
+  extern __shared__ real s[];
+  const auto n_var{param->n_var};
+  real *f = s;
+
+  // Compute the flux with the corresponding cv and bv.
+  const auto &cv = zone->cv;
+  const auto &bv = zone->bv;
+  const auto &metric = zone->metric(idx[0], idx[1], idx[2]);
+  const auto jac = zone->jac(idx[0], idx[1], idx[2]);
+
+  const real kx{metric(direction + 1, 1)}, ky{metric(direction + 1, 2)}, kz{metric(direction + 1, 3)};
+  const real u{bv(idx[0], idx[1], idx[2], 1)}, v{bv(idx[0], idx[1], idx[2], 2)}, w{bv(idx[0], idx[1], idx[2], 3)};
+  const real Uk{kx * u + ky * v + kz * w};
+  const real rhoUk{bv(idx[0], idx[1], idx[2], 0) * Uk};
+  const real p{bv(idx[0], idx[1], idx[2], 4)};
+
+  f[tid * n_var] = rhoUk * jac;
+  f[tid * n_var + 1] = jac * (rhoUk * u + kx * p);
+  f[tid * n_var + 2] = jac * (rhoUk * v + ky * p);
+  f[tid * n_var + 3] = jac * (rhoUk * w + kz * p);
+  f[tid * n_var + 4] = jac * Uk * (cv(idx[0], idx[1], idx[2], 4) + p);
+
+  __syncthreads();
+
+  if (tid < ngg || tid >= block_dim - ngg)
+    return;
+
+  // The central part compute the flux contributed by these fluxes.
+  constexpr real c1{19.0 / 3840}, c2{-13.0 / 320}, c3{17.0 / 256};
+  for (integer l = 0; l < n_var; ++l) {
+    zone->dq(idx[0], idx[1], idx[2], l) -=
+        c1 * (f[tid + 3] - f[tid - 3]) + c2 * (f[tid + 2] - f[tid - 2]) + c3 * (f[tid + 1] - f[tid - 1]);
+  }
+}
+
+template<MixtureModel mix_model>
+void CDSPart(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var, const Parameter &parameter) {
+  const integer extent[3]{block.mx, block.my, block.mz};
+
+  constexpr integer block_dim = 64;
+//  const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
+  auto shared_mem = block_dim * n_var; // f_i
+
+  for (auto dir = 0; dir < 2; ++dir) {
+    integer tpb[3]{1, 1, 1};
+    tpb[dir] = block_dim;
+    integer bpg[3]{extent[0], extent[1], extent[2]};
+    bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 1) + 1;
+
+    dim3 TPB(tpb[0], tpb[1], tpb[2]);
+    dim3 BPG(bpg[0], bpg[1], bpg[2]);
+    CDSPart1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, dir, extent[dir], param);
+  }
+
+  if (extent[2] > 1) {
+    // 3D computation
+    // Number of threads in the 3rd direction cannot exceed 64
+    integer tpb[3]{1, 1, 1};
+    tpb[2] = 64;
+    integer bpg[3]{extent[0], extent[1], extent[2]};
+    bpg[2] = (extent[2] - 1) / (tpb[2] - 1) + 1;
+
+    dim3 TPB(tpb[0], tpb[1], tpb[2]);
+    dim3 BPG(bpg[0], bpg[1], bpg[2]);
+    CDSPart1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
+  }
+}
+
 // Template instantiations
 template void AWENO_HLLC<MixtureModel::Mixture>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
                                                 const Parameter &parameter);
@@ -365,15 +452,17 @@ template void AWENO_HLLC<MixtureModel::Mixture>(const Block &block, cfd::DZone *
 template void AWENO_HLLC<MixtureModel::FR>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
                                            const Parameter &parameter);
 
-template<> void AWENO_HLLC<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
-                                           const Parameter &parameter){
+template<>
+void AWENO_HLLC<MixtureModel::FL>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
+                                  const Parameter &parameter) {
   printf("AWENO_HLLC<MixtureModel::FL> is not implemented yet.\n");
   MpiParallel::exit();
 }
 
-template<> void
+template<>
+void
 AWENO_HLLC<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
-                                          const Parameter &parameter){
+                                          const Parameter &parameter) {
   printf("AWENO_HLLC<MixtureModel::MixtureFraction> is not implemented yet.\n");
   MpiParallel::exit();
 }
