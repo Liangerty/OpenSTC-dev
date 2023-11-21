@@ -74,9 +74,9 @@ __global__ void reduction_of_dv_squared(real *arr, integer size) {
   for (real &l: inp) {
     l = block_reduce_sum(l, size);//, i
   }
-//  if (i == 0) {
-//    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
-//  }
+  //  if (i == 0) {
+  //    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
+  //  }
   __syncthreads();
 
   if (t == 0) {
@@ -84,7 +84,7 @@ __global__ void reduction_of_dv_squared(real *arr, integer size) {
     arr[blockIdx.x + gridDim.x] = inp[1];
     arr[blockIdx.x + gridDim.x * 2] = inp[2];
     arr[blockIdx.x + gridDim.x * 3] = inp[3];
-//    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
+    //    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
   }
 }
 
