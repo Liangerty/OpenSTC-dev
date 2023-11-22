@@ -192,6 +192,9 @@ void cfd::Parameter::deduce_known_info() {
   if (reconstruction_scheme == 4 || reconstruction_scheme == 5) {
     // WENO reconstructions
     switch (inviscid_tag) {
+      case 1: // LF + WENO
+        inviscid_tag = 11;
+        break;
       case 2: // Roe + WENO, which is not supported yet.
         printf("Roe + WENO is not supported yet.\n");
         MpiParallel::exit();

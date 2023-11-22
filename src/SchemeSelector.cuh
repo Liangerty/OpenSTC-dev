@@ -41,6 +41,9 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
     case 4: // HLLC
       HLLC_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
       break;
+    case 11: // LF + WENO
+      AWENO_LF<mix_model>(block, zone, param, n_var, parameter);
+      break;
     case 14: // HLLC + WENO
       AWENO_HLLC<mix_model>(block, zone, param, n_var, parameter);
       break;

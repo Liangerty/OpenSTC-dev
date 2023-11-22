@@ -15,7 +15,7 @@ list(APPEND src_file
   FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
   HLLC.cuh HLLC.cu
   ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
-  Limiter.cuh
+  Limiter.cuh LaxFriedrichs.cuh LaxFriedrichs.cu
   main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h Monitor.cuh Monitor.cu
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
