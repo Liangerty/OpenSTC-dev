@@ -47,6 +47,11 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
     dim3 BPG{(mx + ng_1) / tpb.x + 1, (my + ng_1) / tpb.y + 1, (mz + ng_1) / tpb.z + 1};
     compute_cv_from_bv<mix_model, turb><<<BPG, tpb>>>(field[b].d_ptr, param);
   }
+  auto err=cudaGetLastError();
+  if (err != cudaSuccess) {
+    printf("Error: %s\n", cudaGetErrorString(err));
+    MpiParallel::exit();
+  }
 
   auto &parameter{driver.parameter};
   IOManager<mix_model, turb> ioManager(driver.myid, mesh, field, parameter, driver.spec, 0);
@@ -75,6 +80,11 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
   const bool if_collect_statistics{parameter.get_bool("if_collect_statistics")};
   const int collect_statistics_iter_start{parameter.get_int("start_collect_statistics_iter")};
   StatisticsCollector statistics_collector(parameter, mesh, field);
+  err=cudaGetLastError();
+  if (err != cudaSuccess) {
+    printf("Error: %s\n", cudaGetErrorString(err));
+    MpiParallel::exit();
+  }
 
   while (!finished) {
     ++step;
@@ -175,7 +185,7 @@ void RK3_bv(Driver<mix_model, turb> &driver) {
       if (if_monitor)
         monitor.output_data();
     }
-    auto err=cudaGetLastError();
+    err=cudaGetLastError();
     if (err != cudaSuccess) {
       printf("Error: %s\n", cudaGetErrorString(err));
       MpiParallel::exit();

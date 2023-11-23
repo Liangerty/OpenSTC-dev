@@ -39,7 +39,6 @@ void AWENO_HLLC<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParame
 
     bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 2 * block.ngg) + 1;
 
-
     dim3 BPG2(bpg[0], bpg[1], bpg[2]);
     CDSPart1D<MixtureModel::Air><<<BPG, TPB, shared_cds>>>(zone, dir, extent[dir], param);
   }
@@ -340,13 +339,16 @@ __device__ double2 WENO5(const real *L, const real *cv, integer n_var, integer i
                          13 * v[2] * v[3] + 4 * v[3] * v[3])};
   real beta2{oneThird * (10 * v[2] * v[2] - 31 * v[2] * v[3] + 25 * v[3] * v[3] + 11 * v[2] * v[4] -
                          19 * v[3] * v[4] + 4 * v[4] * v[4])};
+  real tau5sqr{(beta0 - beta2) * (beta0 - beta2)};
   constexpr real eps{1e-6};
   constexpr real oneDiv16{1.0 / 16}, fiveDiv8{5.0 / 8}, fiveDiv16{5.0 / 16};
-  real a0{oneDiv16 / ((eps + beta0) * (eps + beta0))};
-  real a1{fiveDiv8 / ((eps + beta1) * (eps + beta1))};
-  real a2{fiveDiv16 / ((eps + beta2) * (eps + beta2))};
-  real sum_a{a0 + a1 + a2};
-  const real v_minus{(a0 * v0 + a1 * v1 + a2 * v2) / sum_a};
+  real a0{oneDiv16 + oneDiv16 * tau5sqr / ((eps + beta0) * (eps + beta0))};
+  real a1{fiveDiv8 + fiveDiv8 * tau5sqr / ((eps + beta1) * (eps + beta1))};
+  real a2{fiveDiv16 + fiveDiv16 * tau5sqr / ((eps + beta2) * (eps + beta2))};
+//  real a0{oneDiv16 / ((eps + beta0) * (eps + beta0))};
+//  real a1{fiveDiv8 / ((eps + beta1) * (eps + beta1))};
+//  real a2{fiveDiv16 / ((eps + beta2) * (eps + beta2))};
+  const real v_minus{(a0 * v0 + a1 * v1 + a2 * v2) / (a0 + a1 + a2)};
 
   // Reconstruct the "v+" with v[-1:3]
   v0 = v1;
@@ -358,15 +360,14 @@ __device__ double2 WENO5(const real *L, const real *cv, integer n_var, integer i
                       13 * v[3] * v[4] + 4 * v[4] * v[4]);
   beta2 = oneThird * (10 * v[3] * v[3] - 31 * v[3] * v[4] + 25 * v[4] * v[4] + 11 * v[3] * v[5] -
                       19 * v[4] * v[5] + 4 * v[5] * v[5]);
-//  beta0 = beta1;
-//  beta1 = beta2;
-//  beta2 = oneThird * (22 * v[3] * v[3] - 73 * v[3] * v[4] + 61 * v[4] * v[4] + 29 * v[3] * v[5] -
-//                      49 * v[4] * v[5] + 10 * v[5] * v[5]);
-  a0 = fiveDiv16 / ((eps + beta0) * (eps + beta0));
-  a1 = fiveDiv8 / ((eps + beta1) * (eps + beta1));
-  a2 = oneDiv16 / ((eps + beta2) * (eps + beta2));
-  sum_a = a0 + a1 + a2;
-  const real v_plus{(a0 * v0 + a1 * v1 + a2 * v2) / sum_a};
+  tau5sqr = (beta0 - beta2) * (beta0 - beta2);
+  a0 = fiveDiv16 + fiveDiv16 * tau5sqr / ((eps + beta0) * (eps + beta0));
+  a1 = fiveDiv8 + fiveDiv8 * tau5sqr / ((eps + beta1) * (eps + beta1));
+  a2 = oneDiv16 + oneDiv16 * tau5sqr / ((eps + beta2) * (eps + beta2));
+//  a0 = fiveDiv16 / ((eps + beta0) * (eps + beta0));
+//  a1 = fiveDiv8 / ((eps + beta1) * (eps + beta1));
+//  a2 = oneDiv16 / ((eps + beta2) * (eps + beta2));
+  const real v_plus{(a0 * v0 + a1 * v1 + a2 * v2) / (a0 + a1 + a2)};
 
   return double2{v_minus, v_plus};
 }
