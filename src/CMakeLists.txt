@@ -6,7 +6,7 @@
 #     However, the correctness, if the resource is available for the corresponding kernel may need to be tested.
 
 list(APPEND src_file
-  AusmP.cuh AWENO.cuh AWENO.cu
+  AusmP.cuh AusmP.cu AWENO.cuh AWENO.cu
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
   DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
@@ -14,7 +14,7 @@ list(APPEND src_file
   Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h FirstOrderEuler.cuh
   FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
   HLLC.cuh HLLC.cu
-  ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
+  ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh InviscidScheme.cu IOManager.h IOBase.h
   Limiter.cuh LaxFriedrichs.cuh LaxFriedrichs.cu
   main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h Monitor.cuh Monitor.cu
   Output.hpp

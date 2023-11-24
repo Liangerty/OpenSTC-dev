@@ -321,4 +321,20 @@ void HLLC_compute_inviscid_flux<MixtureModel::MixtureFraction>(const Block &bloc
 template __device__ void
 compute_hllc_flux<MixtureModel::Air>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
                                      const real *metric, const real *jac, real *fc, integer i_shared);
+template __device__ void
+compute_hllc_flux<MixtureModel::Mixture>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
+                                     const real *metric, const real *jac, real *fc, integer i_shared);
+template<> __device__ void
+compute_hllc_flux<MixtureModel::MixtureFraction>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
+                                     const real *metric, const real *jac, real *fc, integer i_shared) {
+  printf("compute_hllc_flux<MixtureModel::MixtureFraction> is not implemented yet.\n");
+}
+template __device__ void
+compute_hllc_flux<MixtureModel::FR>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
+                                     const real *metric, const real *jac, real *fc, integer i_shared);
+template<> __device__ void
+compute_hllc_flux<MixtureModel::FL>(const real *pv_l, const real *pv_r, DParameter *param, integer tid,
+                                     const real *metric, const real *jac, real *fc, integer i_shared) {
+  printf("compute_hllc_flux<MixtureModel::FL> is not implemented yet.\n");
+}
 }

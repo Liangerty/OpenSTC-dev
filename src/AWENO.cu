@@ -10,57 +10,10 @@ namespace cfd {
 template<>
 void AWENO_HLLC<MixtureModel::Air>(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
                                    const Parameter &parameter) {
-  // The implementation of AWENO is based on Fig.9 of (Ye, C-C, Zhang, P-J-Y, Wan, Z-H, and Sun, D-J (2022)
-  // An alternative formulation of targeted ENO scheme for hyperbolic conservation laws. Computers & Fluids, 238, 105368.
-  // doi:10.1016/j.compfluid.2022.105368.)
-
   // We want to use the device kernel "HLLC_compute_half_point_flux" which has been implemented above.
   // Therefore, the pv array for it should first contain the conservative variables
 
   // First, we compute the HLLC flux as other cases, but the variables are interpolated by WENO scheme and in characteristic space.
-  const integer extent[3]{block.mx, block.my, block.mz};
-
-  constexpr integer block_dim = 64;
-  const integer n_computation_per_block = block_dim + 2 * block.ngg - 1;
-  auto shared_mem = (block_dim * n_var // fc
-                     + n_computation_per_block * (n_var + 3)) * sizeof(real) // cv[n_var]+p+T+jacobian
-                    + n_computation_per_block * 3 * sizeof(real); // metric[3]
-  auto shared_cds = block_dim * n_var * sizeof(real); // f_i
-
-  for (auto dir = 0; dir < 2; ++dir) {
-    integer tpb[3]{1, 1, 1};
-    tpb[dir] = block_dim;
-    integer bpg[3]{extent[0], extent[1], extent[2]};
-    bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 1) + 1;
-
-    dim3 TPB(tpb[0], tpb[1], tpb[2]);
-    dim3 BPG(bpg[0], bpg[1], bpg[2]);
-    HLLCPart1D<MixtureModel::Air><<<BPG, TPB, shared_mem>>>(zone, dir, extent[dir], param);
-
-    bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 2 * block.ngg) + 1;
-
-    dim3 BPG2(bpg[0], bpg[1], bpg[2]);
-    CDSPart1D<MixtureModel::Air><<<BPG, TPB, shared_cds>>>(zone, dir, extent[dir], param);
-  }
-
-  if (extent[2] > 1) {
-    // 3D computation
-    // Number of threads in the 3rd direction cannot exceed 64
-    integer tpb[3]{1, 1, 1};
-    tpb[2] = 64;
-    integer bpg[3]{extent[0], extent[1], extent[2]};
-    bpg[2] = (extent[2] - 1) / (tpb[2] - 1) + 1;
-
-    dim3 TPB(tpb[0], tpb[1], tpb[2]);
-    dim3 BPG(bpg[0], bpg[1], bpg[2]);
-    HLLCPart1D<MixtureModel::Air><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
-
-    bpg[2] = (extent[2] - 1) / (tpb[2] - 2 * block.ngg) + 1;
-
-
-    dim3 BPG2(bpg[0], bpg[1], bpg[2]);
-    CDSPart1D<MixtureModel::Air><<<BPG, TPB, shared_cds>>>(zone, 2, extent[2], param);
-  }
 }
 
 template<MixtureModel mix_model>
@@ -607,20 +560,32 @@ AWENO_LF<MixtureModel::MixtureFraction>(const Block &block, cfd::DZone *zone, DP
   MpiParallel::exit();
 }
 
-//template __device__ void
-//AWENO_interpolation<MixtureModel::Mixture>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
-//                                           const real *metric, DParameter *param);
-//
-//template __device__ void
-//AWENO_interpolation<MixtureModel::FR>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
-//                                      const real *metric, DParameter *param);
-//
-//template __device__ void
-//AWENO_interpolation<MixtureModel::FL>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
-//                                      const real *metric, DParameter *param);
-//
-//template __device__ void
-//AWENO_interpolation<MixtureModel::MixtureFraction>(const real *cv, real *pv_l, real *pv_r, integer idx_shared,
-//                                                   integer n_var, const real *metric, DParameter *param);
+template __device__ void
+AWENO_interpolation<MixtureModel::Mixture>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
+                                           const real *metric, DParameter *param);
+
+template __device__ void
+AWENO_interpolation<MixtureModel::FR>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
+                                      const real *metric, DParameter *param);
+
+template __device__ void
+AWENO_interpolation<MixtureModel::FL>(const real *cv, real *pv_l, real *pv_r, integer idx_shared, integer n_var,
+                                      const real *metric, DParameter *param);
+
+template __device__ void
+AWENO_interpolation<MixtureModel::MixtureFraction>(const real *cv, real *pv_l, real *pv_r, integer idx_shared,
+                                                   integer n_var, const real *metric, DParameter *param);
+
+template __global__ void
+CDSPart1D<MixtureModel::Mixture>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
+
+template __global__ void
+CDSPart1D<MixtureModel::FR>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
+
+template __global__ void
+CDSPart1D<MixtureModel::FL>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
+
+template __global__ void
+CDSPart1D<MixtureModel::MixtureFraction>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
 
 }

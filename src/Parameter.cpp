@@ -189,7 +189,12 @@ void cfd::Parameter::deduce_known_info() {
   // such as characteristic reconstruction, high-order central difference, etc.
   // Summary: 2-Roe, 3-AUSM+, 4-HLLC, 14-HLLC+WENO
   integer inviscid_tag{get_int("inviscid_scheme")};
+  integer inviscid_type{0};
+  if (inviscid_tag == 2) {
+    inviscid_type = 2;
+  }
   if (reconstruction_scheme == 4 || reconstruction_scheme == 5) {
+    inviscid_type = 1;
     // WENO reconstructions
     switch (inviscid_tag) {
       case 1: // LF + WENO
@@ -210,4 +215,5 @@ void cfd::Parameter::deduce_known_info() {
     }
   }
   update_parameter("inviscid_tag", inviscid_tag);
+  update_parameter("inviscid_type", inviscid_type);
 }
