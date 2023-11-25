@@ -44,28 +44,6 @@ compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, c
       Roe_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
       break;
   }
-
-//  const integer inviscid_tag = parameter.get_int("inviscid_tag");
-//  switch (inviscid_tag) {
-//    case 2: // Roe
-//      Roe_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//    case 3: // AUSM+
-//      AUSMP_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//    case 4: // HLLC
-//      HLLC_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//    case 11: // LF + WENO
-//      AWENO_LF<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//    case 14: // HLLC + WENO
-//      AWENO_HLLC<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//    default:
-//      AUSMP_compute_inviscid_flux<mix_model>(block, zone, param, n_var, parameter);
-//      break;
-//  }
 }
 
 template<MixtureModel mix_model, class turb_method>

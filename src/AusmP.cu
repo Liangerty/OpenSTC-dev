@@ -1,4 +1,6 @@
 #include "AusmP.cuh"
+#include "Reconstruction.cuh"
+#include "Parameter.h"
 
 namespace cfd{
 template<MixtureModel mix_model>

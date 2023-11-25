@@ -8,27 +8,8 @@ struct DZone;
 struct DParameter;
 
 template<MixtureModel mix_model>
-void HLLC_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
-                                const Parameter &parameter);
-
-template<MixtureModel mix_model>
-__global__ void
-HLLC_compute_inviscid_flux_1D(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param);
-
-template<MixtureModel mix_model>
-__device__ void
-HLLC_compute_half_point_flux(DZone *zone, real *pv, integer tid, DParameter *param, real *fc, const real *metric,
-                             const real *jac);
-
-template<MixtureModel mix_model>
 __device__ void
 compute_hllc_flux(const real *pv_l, const real *pv_r, DParameter *param, integer tid, const real *metric,
                   const real *jac, real *fc, integer i_shared);
-
-template<MixtureModel mixtureModel>
-__device__ void
-compute_half_sum_left_right_flux(const real *pv_l, const real *pv_r, DParameter *param, const real *jac,
-                                 const real *metric,
-                                 integer i_shared, integer direction, real *fc);
 
 }

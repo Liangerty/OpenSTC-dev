@@ -3,7 +3,8 @@
 #include "AusmP.cuh"
 #include "HLLC.cuh"
 #include "AWENO.cuh"
-
+#include "Field.h"
+#include "Reconstruction.cuh"
 
 namespace cfd {
 template<MixtureModel mix_model>
@@ -185,26 +186,21 @@ void compute_convective_term_aweno(const Block &block, cfd::DZone *zone, DParame
     bpg[dir] = (extent[dir] - 1) / (tpb[dir] - 2 * block.ngg) + 1;
 
     dim3 BPG2(bpg[0], bpg[1], bpg[2]);
-    CDSPart1D<mix_model><<<BPG, TPB, shared_cds>>>(zone, dir, extent[dir], param);
+    CDSPart1D<mix_model><<<BPG2, TPB, shared_cds>>>(zone, dir, extent[dir], param);
   }
 
   if (extent[2] > 1) {
     // 3D computation
     // Number of threads in the 3rd direction cannot exceed 64
-    integer tpb[3]{1, 1, 1};
-    tpb[2] = 64;
-    integer bpg[3]{extent[0], extent[1], extent[2]};
-    bpg[2] = (extent[2] - 1) / (tpb[2] - 1) + 1;
+    constexpr integer tpb[3]{1, 1, 64};
+    integer bpg[3]{extent[0], extent[1], (extent[2] - 1) / (tpb[2] - 1) + 1};
 
     dim3 TPB(tpb[0], tpb[1], tpb[2]);
     dim3 BPG(bpg[0], bpg[1], bpg[2]);
     compute_convective_term_aweno_1D<mix_model><<<BPG, TPB, shared_mem>>>(zone, 2, extent[2], param);
 
-    bpg[2] = (extent[2] - 1) / (tpb[2] - 2 * block.ngg) + 1;
-
-
-    dim3 BPG2(bpg[0], bpg[1], bpg[2]);
-    CDSPart1D<mix_model><<<BPG, TPB, shared_cds>>>(zone, 2, extent[2], param);
+    dim3 BPG2(extent[0], extent[1], (extent[2] - 1) / (tpb[2] - 2 * block.ngg) + 1);
+    CDSPart1D<mix_model><<<BPG2, TPB, shared_cds>>>(zone, 2, extent[2], param);
   }
 }
 
