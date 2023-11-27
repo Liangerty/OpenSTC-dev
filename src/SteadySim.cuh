@@ -87,7 +87,7 @@ void steady_simulation(Driver<mix_model, turb> &driver) {
 
       // limit unphysical values computed by the program
       //limit_unphysical_variables<mix_model, turb>(field[b].d_ptr, param, b, step, bpg[b], tpb);
-      // limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
+       limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
 
       // apply boundary conditions
       // Attention: "driver" is a template class, when a template class calls a member function of another template,
