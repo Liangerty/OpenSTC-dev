@@ -9,7 +9,7 @@ list(APPEND src_file
   AusmP.cuh AusmP.cu AWENO.cuh AWENO.cu
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
-  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
+  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLUR.cuh DPLUR.cu Driver.cu Driver.cuh
   Element.h Element.cpp
   Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h FirstOrderEuler.cuh
   FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
