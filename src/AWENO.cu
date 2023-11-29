@@ -171,41 +171,35 @@ __device__ double2 WENO5(const real *L, const real *cv, integer n_var, integer i
   real v0{0.125 * (3 * v[0] - 10 * v[1] + 15 * v[2])};
   real v1{0.125 * (-v[1] + 6 * v[2] + 3 * v[3])};
   real v2{0.125 * (3 * v[2] + 6 * v[3] - v[4])};
-  constexpr real oneThird{1.0 / 3.0};
-  real beta0{oneThird * (4 * v[0] * v[0] - 19 * v[0] * v[1] + 25 * v[1] * v[1] + 11 * v[0] * v[2] - 31 * v[2] * v[1] +
-                         10 * v[2] * v[2])};
-  real beta1{oneThird * (4 * v[1] * v[1] - 13 * v[1] * v[2] + 13 * v[2] * v[2] + 5 * v[1] * v[3] -
-                         13 * v[2] * v[3] + 4 * v[3] * v[3])};
-  real beta2{oneThird * (10 * v[2] * v[2] - 31 * v[2] * v[3] + 25 * v[3] * v[3] + 11 * v[2] * v[4] -
-                         19 * v[3] * v[4] + 4 * v[4] * v[4])};
+  constexpr real thirteen12th{13.0 / 12};
+  real beta0 = thirteen12th * (v[0] + v[2] - 2 * v[1]) * (v[0] + v[2] - 2 * v[1]) +
+               0.25 * (v[0] + 3 * v[2] - 4 * v[1]) * (v[0] + 3 * v[2] - 4 * v[1]);
+  real beta1 = thirteen12th * (v[1] + v[3] - 2 * v[2]) * (v[1] + v[3] - 2 * v[2]) +
+               0.25 * (v[3] - v[1]) * (v[3] - v[1]);
+  real beta2 = thirteen12th * (v[2] + v[4] - 2 * v[3]) * (v[2] + v[4] - 2 * v[3]) +
+               0.25 * (3 * v[2] + v[4] - 4 * v[3]) * (3 * v[2] + v[4] - 4 * v[3]);
   real tau5sqr{(beta0 - beta2) * (beta0 - beta2)};
   constexpr real eps{1e-6};
   constexpr real oneDiv16{1.0 / 16}, fiveDiv8{5.0 / 8}, fiveDiv16{5.0 / 16};
   real a0{oneDiv16 + oneDiv16 * tau5sqr / ((eps + beta0) * (eps + beta0))};
   real a1{fiveDiv8 + fiveDiv8 * tau5sqr / ((eps + beta1) * (eps + beta1))};
   real a2{fiveDiv16 + fiveDiv16 * tau5sqr / ((eps + beta2) * (eps + beta2))};
-//  real a0{oneDiv16 / ((eps + beta0) * (eps + beta0))};
-//  real a1{fiveDiv8 / ((eps + beta1) * (eps + beta1))};
-//  real a2{fiveDiv16 / ((eps + beta2) * (eps + beta2))};
   const real v_minus{(a0 * v0 + a1 * v1 + a2 * v2) / (a0 + a1 + a2)};
 
   // Reconstruct the "v+" with v[-1:3]
   v0 = v1;
   v1 = v2;
   v2 = 0.125 * (15 * v[3] - 10 * v[4] + 3 * v[5]);
-  beta0 = oneThird * (4 * v[1] * v[1] - 19 * v[1] * v[2] + 25 * v[2] * v[2] + 11 * v[1] * v[3] - 31 * v[3] * v[2] +
-                      10 * v[3] * v[3]);
-  beta1 = oneThird * (4 * v[2] * v[2] - 13 * v[2] * v[3] + 13 * v[3] * v[3] + 5 * v[2] * v[4] -
-                      13 * v[3] * v[4] + 4 * v[4] * v[4]);
-  beta2 = oneThird * (10 * v[3] * v[3] - 31 * v[3] * v[4] + 25 * v[4] * v[4] + 11 * v[3] * v[5] -
-                      19 * v[4] * v[5] + 4 * v[5] * v[5]);
+  beta0 = thirteen12th * (v[1] + v[3] - 2 * v[2]) * (v[1] + v[3] - 2 * v[2]) +
+          0.25 * (v[1] + 3 * v[3] - 4 * v[2]) * (v[1] + 3 * v[3] - 4 * v[2]);
+  beta1 = thirteen12th * (v[2] + v[4] - 2 * v[3]) * (v[2] + v[4] - 2 * v[3]) +
+          0.25 * (v[4] - v[2]) * (v[4] - v[2]);
+  beta2 = thirteen12th * (v[3] + v[5] - 2 * v[4]) * (v[3] + v[5] - 2 * v[4]) +
+          0.25 * (3 * v[3] + v[5] - 4 * v[4]) * (3 * v[3] + v[5] - 4 * v[4]);
   tau5sqr = (beta0 - beta2) * (beta0 - beta2);
   a0 = fiveDiv16 + fiveDiv16 * tau5sqr / ((eps + beta0) * (eps + beta0));
   a1 = fiveDiv8 + fiveDiv8 * tau5sqr / ((eps + beta1) * (eps + beta1));
   a2 = oneDiv16 + oneDiv16 * tau5sqr / ((eps + beta2) * (eps + beta2));
-//  a0 = fiveDiv16 / ((eps + beta0) * (eps + beta0));
-//  a1 = fiveDiv8 / ((eps + beta1) * (eps + beta1));
-//  a2 = oneDiv16 / ((eps + beta2) * (eps + beta2));
   const real v_plus{(a0 * v0 + a1 * v1 + a2 * v2) / (a0 + a1 + a2)};
 
   return double2{v_minus, v_plus};
@@ -217,7 +211,8 @@ __global__ void CDSPart1D(cfd::DZone *zone, integer direction, integer max_exten
 }
 
 template<>
-__global__ void CDSPart1D<MixtureModel::Air>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
+__global__ void
+CDSPart1D<MixtureModel::Air>(cfd::DZone *zone, integer direction, integer max_extent, DParameter *param) {
   integer labels[3]{0, 0, 0};
   labels[direction] = 1;
   const auto tid = (integer) (threadIdx.x * labels[0] + threadIdx.y * labels[1] + threadIdx.z * labels[2]);

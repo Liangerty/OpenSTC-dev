@@ -196,24 +196,24 @@ void cfd::Parameter::deduce_known_info() {
   if (reconstruction_scheme == 4 || reconstruction_scheme == 5) {
     inviscid_type = 1;
     // WENO reconstructions
-    switch (inviscid_tag) {
-      case 1: // LF + WENO
-        inviscid_tag = 11;
-        break;
-      case 2: // Roe + WENO, which is not supported yet.
-        printf("Roe + WENO is not supported yet.\n");
-        MpiParallel::exit();
-      case 3: // AUSM + WENO, which is not supported yet.
-        printf("AUSM + WENO is not supported yet.\n");
-        MpiParallel::exit();
-      case 4: // HLLC + WENO, currently assigned by tag 14.
-        inviscid_tag = 14;
-        break;
-      default:
-        printf("??? + WENO is not supported yet.\n");
-        MpiParallel::exit();
-    }
+//    switch (inviscid_tag) {
+//      case 1: // LF + WENO
+//        inviscid_tag = 11;
+//        break;
+//      case 2: // Roe + WENO, which is not supported yet.
+//        printf("Roe + WENO is not supported yet.\n");
+//        MpiParallel::exit();
+//      case 3: // AUSM + WENO, which is not supported yet.
+//        printf("AUSM + WENO is not supported yet.\n");
+//        MpiParallel::exit();
+//      case 4: // HLLC + WENO, currently assigned by tag 14.
+//        inviscid_tag = 14;
+//        break;
+//      default:
+//        printf("??? + WENO is not supported yet.\n");
+//        MpiParallel::exit();
+//    }
   }
-  update_parameter("inviscid_tag", inviscid_tag);
+//  update_parameter("inviscid_tag", inviscid_tag);
   update_parameter("inviscid_type", inviscid_type);
 }
