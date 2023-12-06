@@ -80,7 +80,7 @@ void steady_simulation(Driver<mix_model, turb> &driver) {
       // compute the local time step
       local_time_step<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
       // implicit treatment if needed
-      implicit_treatment<mix_model, turb>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr);
+      implicit_treatment<mix_model, turb>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr, driver.bound_cond);
 
       // update conservative and basic variables
       update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);

@@ -6,7 +6,7 @@
 namespace cfd {
 template<MixtureModel mixture_model, class turb_method>
 void implicit_treatment(const Block &block, const DParameter *param, DZone *d_ptr, const Parameter &parameter,
-                        DZone *h_ptr) {
+                        DZone *h_ptr, DBoundCond& bound_cond) {
   switch (parameter.get_int("implicit_method")) {
     case 0: // Explicit
       if constexpr (mixture_model == MixtureModel::FR) {
@@ -46,7 +46,7 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
       }
       return;
     case 1: // DPLUR
-      DPLUR<mixture_model, turb_method>(block, param, d_ptr, h_ptr, parameter);
+      DPLUR<mixture_model, turb_method>(block, param, d_ptr, h_ptr, parameter, bound_cond);
     default:return;
   }
 }

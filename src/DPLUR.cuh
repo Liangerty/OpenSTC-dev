@@ -106,6 +106,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   } else if constexpr (mixture_model == MixtureModel::FL) {
     real enthalpy[MAX_SPEC_NUMBER];
     const real t{pv(i, j, k, 5)};
+    gamma = zone->gamma(i, j, k);
     compute_enthalpy(t, enthalpy, param);
     for (int l = 0; l < param->n_spec; ++l) {
       h += sv(i, j, k, l) * enthalpy[l];
@@ -280,8 +281,12 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
 
 __global__ void convert_dq_back_to_dqDt(DZone *zone, const DParameter *param);
 
+struct DBoundCond;
+
+void set_wall_dq_to_0(const Block &block, const DParameter *param, DZone *zone, DBoundCond& bound_cond);
+
 template<MixtureModel mixture_model, class turb_method>
-void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter) {
+void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter, DBoundCond& bound_cond) {
   const integer extent[3]{block.mx, block.my, block.mz};
   const integer dim{extent[2] == 1 ? 2 : 3};
   dim3 tpb{8, 8, 4};
@@ -298,6 +303,8 @@ void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_p
   cudaMemcpy(h_ptr->dq0.data(), h_ptr->dq.data(), mem_sz, cudaMemcpyDeviceToDevice);
 
   for (integer iter = 0; iter < parameter.get_int("DPLUR_inner_step"); ++iter) {
+    set_wall_dq_to_0(block, param, d_ptr,bound_cond);
+
     DPLUR_inner_iteration<mixture_model, turb_method><<<bpg, tpb>>>(param, d_ptr);
     // Theoretically, there should be a data communication here to exchange dq among processes.
     cudaMemcpy(h_ptr->dq.data(), h_ptr->dqk.data(), mem_sz, cudaMemcpyDeviceToDevice);
