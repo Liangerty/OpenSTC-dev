@@ -80,14 +80,14 @@ void steady_simulation(Driver<mix_model, turb> &driver) {
       // compute the local time step
       local_time_step<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
       // implicit treatment if needed
-      implicit_treatment<mix_model, turb>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr);
+      implicit_treatment<mix_model, turb>(mesh[b], param, field[b].d_ptr, parameter, field[b].h_ptr, driver.bound_cond);
 
       // update conservative and basic variables
       update_bv<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param);
 
       // limit unphysical values computed by the program
       //limit_unphysical_variables<mix_model, turb>(field[b].d_ptr, param, b, step, bpg[b], tpb);
-      // limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
+      //limit_flow<mix_model, turb><<<bpg[b], tpb>>>(field[b].d_ptr, param, b);
 
       // apply boundary conditions
       // Attention: "driver" is a template class, when a template class calls a member function of another template,
@@ -97,7 +97,7 @@ void steady_simulation(Driver<mix_model, turb> &driver) {
       driver.bound_cond.template apply_boundary_conditions<mix_model, turb>(mesh[b], field[b], param);
     }
     // Third, transfer data between and within processes
-    data_communication(mesh, field, parameter, step, param);
+    data_communication<mix_model, turb>(mesh, field, parameter, step, param);
 
     if (mesh.dimension == 2) {
       for (auto b = 0; b < n_block; ++b) {

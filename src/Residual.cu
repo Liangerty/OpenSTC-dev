@@ -74,9 +74,9 @@ __global__ void reduction_of_dv_squared(real *arr, integer size) {
   for (real &l: inp) {
     l = block_reduce_sum(l, size);//, i
   }
-//  if (i == 0) {
-//    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
-//  }
+  //  if (i == 0) {
+  //    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
+  //  }
   __syncthreads();
 
   if (t == 0) {
@@ -84,7 +84,7 @@ __global__ void reduction_of_dv_squared(real *arr, integer size) {
     arr[blockIdx.x + gridDim.x] = inp[1];
     arr[blockIdx.x + gridDim.x * 2] = inp[2];
     arr[blockIdx.x + gridDim.x * 3] = inp[3];
-//    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
+    //    printf("After block reduce: %d %e %e %e %e\n", blockIdx.x, inp[0], inp[1], inp[2], inp[3]);
   }
 }
 
@@ -102,7 +102,8 @@ void steady_screen_output(integer step, real err_max, gxl::Time &time, std::arra
   printf("Total elapsed CPU time is %16.8fs\n", time.elapsed_time);
 }
 
-void unsteady_screen_output(integer step, real err_max, gxl::Time &time, std::array<real, 4> &res, real dt) {
+void unsteady_screen_output(integer step, real err_max, gxl::Time &time, std::array<real, 4> &res, real dt,
+                            real solution_time) {
   time.get_elapsed_time();
   FILE *history = std::fopen("history.dat", "a");
   fprintf(history, "%d\t%11.4e\n", step, err_max);
@@ -112,6 +113,7 @@ void unsteady_screen_output(integer step, real err_max, gxl::Time &time, std::ar
   printf("  n=%8d,   dt=%13.7e,   V     converged to: %11.4e   \n", step, dt, res[1]);
   printf("  n=%8d,   dt=%13.7e,   p     converged to: %11.4e   \n", step, dt, res[2]);
   printf("%38s    converged to: %11.4e\n", "T ", res[3]);
+  printf("Current physical  time is %16.8es\n", solution_time);
   printf("CPU time for this step is %16.8fs\n", time.step_time);
   printf("Total elapsed CPU time is %16.8fs\n", time.elapsed_time);
 }

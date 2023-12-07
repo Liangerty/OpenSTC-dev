@@ -1,0 +1,4 @@
+// process_id   block_id    i   j   k
+0   0   42   50   0
+0   1   65   48   0
+0   1   188   57   0

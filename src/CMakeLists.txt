@@ -6,20 +6,21 @@
 #     However, the correctness, if the resource is available for the corresponding kernel may need to be tested.
 
 list(APPEND src_file
-  AusmP.cuh
+  AusmP.cuh AusmP.cu AWENO.cuh AWENO.cu
   BoundCond.h BoundCond.cpp BoundCond.cu BoundCond.cuh BoundaryIO.h
   ChemData.h ChemData.cpp Constants.h
-  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLURHPP.cuh Driver.cu Driver.cuh
+  DataCommunication.cuh DataCommunication.cu Define.h DParameter.cu DParameter.cuh DPLUR.cuh DPLUR.cu Driver.cu Driver.cuh
   Element.h Element.cpp
   Field.h Field.cu FieldOperation.cuh FieldOperation.cu FiniteRateChem.cu FiniteRateChem.cuh FieldIO.h FirstOrderEuler.cuh
   FlameletDriver.cuh FlameletDriver.cu FlameletLib.cu FlameletLib.cuh
-  ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh IOManager.h IOBase.h
-  Limiter.cuh
-  main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h
+  HLLC.cuh HLLC.cu
+  ImplicitTreatmentHPP.cuh Initialize.cuh Initialize.cu InviscidScheme.cuh InviscidScheme.cu IOManager.h IOBase.h
+  Limiter.cuh LaxFriedrichs.cuh LaxFriedrichs.cu
+  main.cu Mesh.h Mesh.cpp MPIIO.hpp MPIIO.cu MixtureFraction.cpp MixtureFraction.h Monitor.cuh Monitor.cu
   Output.hpp
   Parallel.h Parallel.cpp Parallel.cu Parameter.h Parameter.cpp PostProcess.h PostProcess.cu
-  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh Roe.cuh Roe.cu
-  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh
+  Reconstruction.cu Reconstruction.cuh Residual.cu Residual.cuh Roe.cuh Roe.cu RK.cuh
+  SchemeSelector.cuh SourceTerm.cuh SST.cuh SST.cu SteadySim.cuh Simulate.cuh StatisticsCollector.cu StatisticsCollector.cuh
   Transport.cuh Transport.cu TimeAdvanceFunc.cu TimeAdvanceFunc.cuh Thermo.cuh Thermo.cu TurbMethod.hpp
   ViscousScheme.cuh
   WallDistance.cuh

@@ -1,0 +1,10 @@
+// This file is used only in unsteady turbulent simulations.
+
+// First, specify if we want to collect the statistics.
+bool if_collect_statistics = 0
+
+// Next, specify if the statistics are collected from start(0) or continued from previous results(1).
+bool if_continue_collect_statistics = 0
+
+// Specify when to start collecting the statistics based on iterations.
+int start_collect_statistics_iter = 0

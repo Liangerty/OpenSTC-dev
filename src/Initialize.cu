@@ -36,6 +36,7 @@ void initialize_from_start(Parameter &parameter, const Mesh &mesh, std::vector<F
     field[blk].initialize_basic_variables(parameter, groups_inflow, xs, xe, ys, ye, zs, ze);
   }
 
+  parameter.update_parameter("solution_time", 0.0);
 
   if (parameter.get_int("myid") == 0) {
     printf("Flowfield is initialized from given inflow conditions.\n");

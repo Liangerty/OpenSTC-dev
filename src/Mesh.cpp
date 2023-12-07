@@ -257,7 +257,7 @@ cfd::Block::Block(const integer _mx, const integer _my, const integer _mz,
       metric{mx, my, mz, _ngg} {}
 
 void cfd::Block::compute_jac_metric(integer myid) {
-  // First the inner part is computed, excluding the boundaries and ghost grids
+  // First, the inner part is computed, excluding the boundaries and ghost grids
   for (integer i = 1; i < mx - 1; ++i) {
     for (integer j = 1; j < my - 1; ++j) {
       integer k_min{1}, k_max{mz - 1};
@@ -547,13 +547,14 @@ void cfd::Block::trim_abundant_ghost_mesh() {
   }
 }
 
-cfd::Mesh::Mesh(Parameter &parameter) : dimension{parameter.get_int("dimension")}, ngg{parameter.get_int("ngg")},
+cfd::Mesh::Mesh(Parameter &parameter) : dimension{3}, ngg{parameter.get_int("ngg")},
                                         n_proc{parameter.get_int("n_proc")}, nblk{new integer[n_proc]} {
   const integer myid = parameter.get_int("myid");
   const bool parallel = parameter.get_bool("parallel");
   //First read the grid points into memory
   read_grid(myid/*, ngg*/);
   parameter.update_parameter("n_block", n_block);
+  parameter.update_parameter("dimension", dimension);
   if (myid == 0) {
     fmt::print("Problem dimension: {}\nTotal grid number: {}\n", dimension, n_grid_total);
   }

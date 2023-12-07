@@ -8,7 +8,7 @@ struct DZone;
 struct DParameter;
 
 template<MixtureModel mix_model>
-void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, const integer n_var,
+void Roe_compute_inviscid_flux(const Block &block, cfd::DZone *zone, DParameter *param, integer n_var,
                                const Parameter &parameter);
 
 template<MixtureModel mix_model>

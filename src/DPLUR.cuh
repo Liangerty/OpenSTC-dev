@@ -6,6 +6,7 @@
 #include "Constants.h"
 #include "Thermo.cuh"
 #include "SST.cuh"
+#include "FiniteRateChem.cuh"
 
 namespace cfd {
 struct DZone;
@@ -19,17 +20,21 @@ __global__ void compute_DQ_0(DZone *zone, const DParameter *param) {
   if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
 
   const real dt_local = zone->dt_local(i, j, k);
+  auto &dq = zone->dq;
+  for (integer l = 0; l < param->n_var; ++l) {
+    dq(i, j, k, l) *= dt_local;
+  }
+
   const auto &inviscid_spectral_radius = zone->inv_spectr_rad(i, j, k);
   const real diag =
       1 + dt_local * (inviscid_spectral_radius[0] + inviscid_spectral_radius[1] + inviscid_spectral_radius[2]);
-  auto &dq = zone->dq;
   const integer n_spec{param->n_spec};
   if constexpr (mixture_model == MixtureModel::Air || mixture_model == MixtureModel::Mixture) {
     for (integer l = 0; l < 5 + n_spec; ++l) {
       dq(i, j, k, l) /= diag;
     }
   } else if constexpr (mixture_model == MixtureModel::FR) {
-    // Use point implicit method to treat chemical source
+    // Use point implicit method to treat the chemical source
     for (integer l = 0; l < 5; ++l) {
       dq(i, j, k, l) /= diag;
     }
@@ -101,6 +106,7 @@ compute_jacobian_times_dq(const DParameter *param, DZone *zone, const integer i,
   } else if constexpr (mixture_model == MixtureModel::FL) {
     real enthalpy[MAX_SPEC_NUMBER];
     const real t{pv(i, j, k, 5)};
+    gamma = zone->gamma(i, j, k);
     compute_enthalpy(t, enthalpy, param);
     for (int l = 0; l < param->n_spec; ++l) {
       h += sv(i, j, k, l) * enthalpy[l];
@@ -273,8 +279,14 @@ __global__ void DPLUR_inner_iteration(const DParameter *param, DZone *zone) {
   }
 }
 
+__global__ void convert_dq_back_to_dqDt(DZone *zone, const DParameter *param);
+
+struct DBoundCond;
+
+void set_wall_dq_to_0(const Block &block, const DParameter *param, DZone *zone, DBoundCond& bound_cond);
+
 template<MixtureModel mixture_model, class turb_method>
-void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter) {
+void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_ptr, const Parameter &parameter, DBoundCond& bound_cond) {
   const integer extent[3]{block.mx, block.my, block.mz};
   const integer dim{extent[2] == 1 ? 2 : 3};
   dim3 tpb{8, 8, 4};
@@ -283,7 +295,7 @@ void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_p
   }
   const dim3 bpg{(extent[0] - 1) / tpb.x + 1, (extent[1] - 1) / tpb.y + 1, (extent[2] - 1) / tpb.z + 1};
 
-  // DQ(0)=DQ/(1+dt*DRho+dt*dS/dQ)
+  // DQ(0)=dt*DQ/(1+dt*DRho+dt*dS/dQ)
   compute_DQ_0<mixture_model, turb_method><<<bpg, tpb>>>(d_ptr, param);
   // Take care of all such treatments where n_var is used to decide the memory size,
   // for when flamelet model is used, the data structure should be modified to make the useful data contiguous.
@@ -291,10 +303,14 @@ void DPLUR(const Block &block, const DParameter *param, DZone *d_ptr, DZone *h_p
   cudaMemcpy(h_ptr->dq0.data(), h_ptr->dq.data(), mem_sz, cudaMemcpyDeviceToDevice);
 
   for (integer iter = 0; iter < parameter.get_int("DPLUR_inner_step"); ++iter) {
+    set_wall_dq_to_0(block, param, d_ptr,bound_cond);
+
     DPLUR_inner_iteration<mixture_model, turb_method><<<bpg, tpb>>>(param, d_ptr);
     // Theoretically, there should be a data communication here to exchange dq among processes.
     cudaMemcpy(h_ptr->dq.data(), h_ptr->dqk.data(), mem_sz, cudaMemcpyDeviceToDevice);
   }
+
+  convert_dq_back_to_dqDt<<<bpg, tpb>>>(d_ptr,param);
 }
 
 }

@@ -15,7 +15,7 @@ struct  init_cond_0     {
     real        x0      =   0
     real        x1      =   1
     real        y0      =   -1
-    real        y1      =   0
+    real        y1      =   0.00476
     real        z0      =   -1
     real        z1      =   100
 }

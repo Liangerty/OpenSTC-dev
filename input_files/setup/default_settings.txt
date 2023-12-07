@@ -50,3 +50,7 @@ bool       gradPInDiffusionFlux =   0
 
 // Which boundary condition is used to initialize the whole flowfield
 string reference_state = farfield
+
+///* Settings about collecting statistics *///
+bool    if_collect_statistics   =   0
+int     start_collect_statistics_iter = 0

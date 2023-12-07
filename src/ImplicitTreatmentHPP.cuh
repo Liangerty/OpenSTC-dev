@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Define.h"
-#include "DPLURHPP.cuh"
+#include "DPLUR.cuh"
 
 namespace cfd {
 template<MixtureModel mixture_model, class turb_method>
 void implicit_treatment(const Block &block, const DParameter *param, DZone *d_ptr, const Parameter &parameter,
-                        DZone *h_ptr) {
+                        DZone *h_ptr, DBoundCond& bound_cond) {
   switch (parameter.get_int("implicit_method")) {
     case 0: // Explicit
       if constexpr (mixture_model == MixtureModel::FR) {
@@ -20,10 +20,10 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
           const dim3 bpg{(extent[0] - 1) / tpb.x + 1, (extent[1] - 1) / tpb.y + 1, (extent[2] - 1) / tpb.z + 1};
           switch (chem_src_method) {
             case 1: // EPI
-              EPI<<<bpg, tpb>>>(d_ptr, param->n_spec);
+              EPI<<<bpg, tpb>>>(d_ptr, parameter.get_int("n_spec"));
               break;
             case 2: // DA
-              DA<<<bpg, tpb>>>(d_ptr, param->n_spec);
+              DA<<<bpg, tpb>>>(d_ptr, parameter.get_int("n_spec"));
               break;
             default: // explicit
               break;
@@ -46,7 +46,7 @@ void implicit_treatment(const Block &block, const DParameter *param, DZone *d_pt
       }
       return;
     case 1: // DPLUR
-      DPLUR<mixture_model, turb_method>(block, param, d_ptr, h_ptr, parameter);
+      DPLUR<mixture_model, turb_method>(block, param, d_ptr, h_ptr, parameter, bound_cond);
     default:return;
   }
 }

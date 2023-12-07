@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Define.h"
 #include "Field.h"
 #include "DParameter.cuh"
@@ -13,12 +14,12 @@ __device__ void first_order_reconstruct(const real *pv, real *pv_l, real *pv_r, 
 __device__ void
 MUSCL_reconstruct(const real *pv, real *pv_l, real *pv_r, integer idx_shared, integer n_var, integer limiter);
 
-__device__ void NND2_reconstruct(const real *pv, real *pv_l, real *pv_r, integer idx_shared, integer n_var, integer limiter);
+__device__ void
+NND2_reconstruct(const real *pv, real *pv_l, real *pv_r, integer idx_shared, integer n_var, integer limiter);
 
 template<MixtureModel mix_model>
 __device__ void
-reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DZone *zone,
-               DParameter *param) {
+reconstruction(real *pv, real *pv_l, real *pv_r, const integer idx_shared, DParameter *param) {
   auto n_var = param->n_var;
   if constexpr (mix_model == MixtureModel::FL) {
     n_var += param->n_spec;

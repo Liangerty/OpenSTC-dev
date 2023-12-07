@@ -16,7 +16,7 @@ __device__ void
 compute_temperature_and_pressure(int i, int j, int k, const DParameter *param, DZone *zone, real total_energy);
 
 template<MixtureModel mixture_model>
-__device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone *zone, DParameter *param) {
+__device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone *zone, const DParameter *param) {
   auto &bv = zone->bv;
   auto &sv = zone->sv;
 
@@ -33,6 +33,7 @@ __device__ void compute_total_energy(integer i, integer j, integer k, cfd::DZone
     total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy -= bv(i, j, k, 4); // (\rho e =\rho h - p)
   } else {
+    total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy += bv(i, j, k, 4) / (gamma_air - 1);
   }
   zone->cv(i, j, k, 4) = total_energy;
@@ -79,34 +80,34 @@ __global__ void compute_cv_from_bv(DZone *zone, DParameter *param) {
 
 __global__ void compute_velocity(DZone *zone);
 
-//template<MixtureModel mix_model, TurbulenceMethod turb_method>
-//__device__ void compute_cv_from_bv_1_point(DZone *zone, DParameter *param, integer i, integer j, integer k) {
-//  const auto &bv = zone->bv;
-//  auto &cv = zone->cv;
-//  const real rho = bv(i, j, k, 0);
-//
-//  cv(i, j, k, 0) = rho;
-//  cv(i, j, k, 1) = rho * bv(i, j, k, 1);
-//  cv(i, j, k, 2) = rho * bv(i, j, k, 2);
-//  cv(i, j, k, 3) = rho * bv(i, j, k, 3);
-//  // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
-//  const auto &sv = zone->sv;
-//  if constexpr (mix_model != MixtureModel::FL) {
-//    const integer n_scalar{param->n_scalar};
-//    for (auto l = 0; l < n_scalar; ++l) {
-//      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
-//    }
-//  } else {
-//    // Flamelet model
-//    const integer n_spec{param->n_spec};
-//    const integer n_scalar_transported{param->n_scalar_transported};
-//    for (auto l = 0; l < n_scalar_transported; ++l) {
-//      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
-//    }
-//  }
-//
-//  compute_total_energy<mix_model>(i, j, k, zone, param);
-//}
+template<MixtureModel mix_model, class turb_method>
+__device__ void compute_cv_from_bv_1_point(DZone *zone, const DParameter *param, integer i, integer j, integer k) {
+  const auto &bv = zone->bv;
+  auto &cv = zone->cv;
+  const real rho = bv(i, j, k, 0);
+
+  cv(i, j, k, 0) = rho;
+  cv(i, j, k, 1) = rho * bv(i, j, k, 1);
+  cv(i, j, k, 2) = rho * bv(i, j, k, 2);
+  cv(i, j, k, 3) = rho * bv(i, j, k, 3);
+  // It seems we don't need an if here, if there is no other scalars, n_scalar=0; else, n_scalar=n_spec+n_turb
+  const auto &sv = zone->sv;
+  if constexpr (mix_model != MixtureModel::FL) {
+    const integer n_scalar{param->n_scalar};
+    for (auto l = 0; l < n_scalar; ++l) {
+      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l);
+    }
+  } else {
+    // Flamelet model
+    const integer n_spec{param->n_spec};
+    const integer n_scalar_transported{param->n_scalar_transported};
+    for (auto l = 0; l < n_scalar_transported; ++l) {
+      cv(i, j, k, 5 + l) = rho * sv(i, j, k, l + n_spec);
+    }
+  }
+
+  compute_total_energy<mix_model>(i, j, k, zone, param);
+}
 
 template<MixtureModel mix_model>
 __global__ void update_physical_properties(DZone *zone, DParameter *param) {
@@ -211,6 +212,7 @@ __device__ real compute_total_energy_1_point(integer i, integer j, integer k, cf
     total_energy *= bv(i, j, k, 0); // \rho * h
     total_energy -= bv(i, j, k, 4); // (\rho e =\rho h - p)
   } else {
+    total_energy *= bv(i, j, k, 0); // \rho * u_i * u_i * 0.5
     total_energy += bv(i, j, k, 4) / (gamma_air - 1);
   }
   return total_energy;
@@ -367,70 +369,34 @@ __global__ void update_bv(cfd::DZone *zone, DParameter *param, real dt) {
   zone->vel(i, j, k) = std::sqrt(V2);
 }
 
-//template<MixtureModel mix_model, TurbMethod turb_method>
-//__global__ void update_cv_and_bv(cfd::DZone *zone, DParameter *param, real dt) {
-//  const integer extent[3]{zone->mx, zone->my, zone->mz};
-//  const auto i = (integer) (blockDim.x * blockIdx.x + threadIdx.x);
-//  const auto j = (integer) (blockDim.y * blockIdx.y + threadIdx.y);
-//  const auto k = (integer) (blockDim.z * blockIdx.z + threadIdx.z);
-//  if (i >= extent[0] || j >= extent[1] || k >= extent[2]) return;
-//
-//  auto &cv = zone->cv;
-//
-//  real dt_div_jac = dt / zone->jac(i, j, k);
-//  for (integer l = 0; l < param->n_var; ++l) {
-//    cv(i, j, k, l) += zone->dq(i, j, k, l) * dt_div_jac;
-//  }
-//  if (extent[2] == 1) {
-//    cv(i, j, k, 3) = 0;
-//  }
-//
-//  auto &bv = zone->bv;
-//  auto &velocity = zone->vel(i, j, k);
-//
-//  bv(i, j, k, 0) = cv(i, j, k, 0);
-//  const real density_inv = 1.0 / cv(i, j, k, 0);
-//  bv(i, j, k, 1) = cv(i, j, k, 1) * density_inv;
-//  bv(i, j, k, 2) = cv(i, j, k, 2) * density_inv;
-//  bv(i, j, k, 3) = cv(i, j, k, 3) * density_inv;
-//  velocity = bv(i, j, k, 1) * bv(i, j, k, 1) + bv(i, j, k, 2) * bv(i, j, k, 2) + bv(i, j, k, 3) * bv(i, j, k, 3); //V^2
-//
-//  auto &sv = zone->sv;
-//  if constexpr (mix_model != MixtureModel::FL) {
-//    // For multiple species or RANS methods, there will be scalars to be computed
-//    for (integer l = 0; l < param->n_scalar; ++l) {
-//      sv(i, j, k, l) = cv(i, j, k, 5 + l) * density_inv;
-//    }
-//  } else {
-//    // Flamelet model
-//    for (integer l = 0; l < param->n_scalar_transported; ++l) {
-//      sv(i, j, k, l + param->n_spec) = cv(i, j, k, 5 + l) * density_inv;
-//    }
-//    real yk_ave[MAX_SPEC_NUMBER];
-//    memset(yk_ave, 0, sizeof(real) * param->n_spec);
-//    compute_massFraction_from_MixtureFraction(zone, i, j, k, param, yk_ave);
-//    if (param->n_fl_step > 10000) {
-//      for (integer l = 0; l < param->n_spec; ++l) {
-//        sv(i, j, k, l) = yk_ave[l];
-//      }
-//    } else {
-//      for (integer l = 0; l < param->n_spec; ++l) {
-//        real yk_mix = param->yk_lib(l, 0, 0, 0) +
-//                      sv(i, j, k, param->i_fl) * (param->yk_lib(l, 0, 0, param->n_z) - param->yk_lib(l, 0, 0, 0));
-//        sv(i, j, k, l) = yk_mix + param->n_fl_step * (yk_ave[l] - yk_mix) / 10000.0;
-//      }
-//    }
-//  }
-//  if constexpr (mix_model != MixtureModel::Air) {
-//    compute_temperature(i, j, k, param, zone);
-//  } else {
-//    // Air
-//    bv(i, j, k, 4) = (gamma_air - 1) * (cv(i, j, k, 4) - 0.5 * bv(i, j, k, 0) * velocity);
-//    bv(i, j, k, 5) = bv(i, j, k, 4) * mw_air * density_inv / R_u;
-//  }
-//  velocity = std::sqrt(velocity);
-//}
+template<bool with_cv = false>
+__global__ void eliminate_k_gradient(cfd::DZone *zone, const DParameter *param) {
+  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my};
+  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
+  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - ngg;
+  if (i >= mx + ngg || j >= my + ngg) return;
 
-__global__ void eliminate_k_gradient(cfd::DZone *zone, const DParameter *param);
+  auto &bv = zone->bv;
+  auto &sv = zone->sv;
+  const integer n_scalar = param->n_scalar;
+
+  for (integer k = 1; k <= ngg; ++k) {
+    for (int l = 0; l < 6; ++l) {
+      bv(i, j, k, l) = bv(i, j, 0, l);
+      bv(i, j, -k, l) = bv(i, j, 0, l);
+    }
+    for (int l = 0; l < n_scalar; ++l) {
+      sv(i, j, k, l) = sv(i, j, 0, l);
+      sv(i, j, -k, l) = sv(i, j, 0, l);
+    }
+    if constexpr (with_cv) {
+      auto &cv = zone->cv;
+      for (integer l = 0; l < param->n_var; ++l) {
+        cv(i, j, k, l) = cv(i, j, 0, l);
+        cv(i, j, -k, l) = cv(i, j, 0, l);
+      }
+    }
+  }
+}
 
 }

@@ -1,13 +1,13 @@
 // If the solver solves multispecies equations or basic equations.
 // If species are involved, how many? Is there any reaction involved?
-int species = 2       // If there is species involved. 0 - Air as perfect gas; 1 - Species involved; 2 - Species + mixture fraction + mixture fraction variance are solved
-int reaction = 2     //0-No reaction; 1-Finite rate chemistry; 2-Flamelet model. Even no reactions are involved, the mechanism file should exit to clarify the species
+int species = 1         // If there is species involved. 0 - Air as perfect gas; 1 - Species involved; 2 - Species + mixture fraction + mixture fraction variance are solved
+int reaction = 1        //0-No reaction; 1-Finite rate chemistry; 2-Flamelet model. Even no reactions are involved, the mechanism file should exit to clarify the species
 string mechanism_file = chemistry/H2_mech.inp  // H2_mech_mixing.inp
-string therm_file = chemistry/therm-1.dat
+string therm_file = chemistry/therm.dat
 string transport_file = chemistry/tran.dat
 int     flamelet_format = 0   // 0 - ACANS format; 1 - FlameMaster format
 string  flamelet_file_name  =   chemistry/flamelet-lib-zzprimx.txt    // Flamelet file name
-int chemSrcMethod = 1  // Method to treat chemical source. 0 - Explicit, 1 - Implicit(Exact), 2 - MDA
+int chemSrcMethod = 2  // Method to treat chemical source. 0 - Explicit, 1 - Implicit(Exact), 2 - MDA
 real    c_chi   =   1.0     // The coefficient of scalar dissipation rate computation
 string mix_frac_elem = C    // Which element is used for mixture fraction computation
 real hcst_tolerance = 1e-4

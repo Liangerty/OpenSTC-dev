@@ -81,8 +81,12 @@ __device__ void compute_fv_2nd_order(const integer idx[3], DZone *zone, real *fv
   const real tau_yz = viscosity * (v_z + w_y);
   if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
     // SST
+    constexpr real delta_d{1e-3};
+    const real dy_div_delta = min(0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i + 1, j, k)) / delta_d,
+                                  1.0);
     const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                 pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec));
+                                                 pv(i + 1, j, k, 0) * zone->sv(i + 1, j, k, param->n_spec))
+                               * dy_div_delta;
     tau_xx += twoThirdrhoKm;
     tau_yy += twoThirdrhoKm;
     tau_zz += twoThirdrhoKm;
@@ -346,8 +350,12 @@ __device__ void compute_gv_2nd_order(const integer *idx, DZone *zone, real *gv, 
 
   if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
     // SST
+    constexpr real delta_d{1e-3};
+    const real dy_div_delta = min(0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j + 1, k)) / delta_d,
+                                  1.0);
     const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                 pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec));
+                                                 pv(i, j + 1, k, 0) * zone->sv(i, j + 1, k, param->n_spec))
+                                                * dy_div_delta;
     tau_xx += twoThirdrhoKm;
     tau_yy += twoThirdrhoKm;
     tau_zz += twoThirdrhoKm;
@@ -607,8 +615,12 @@ __device__ void compute_hv_2nd_order(const integer *idx, DZone *zone, real *hv, 
 
   if constexpr (TurbMethod<turb_method>::label == TurbMethodLabel::SST) {
     // SST
+    constexpr real delta_d{1e-3};
+    const real dy_div_delta = min(0.5 * (zone->wall_distance(i, j, k) + zone->wall_distance(i, j, k + 1)) / delta_d,
+                                  1.0);
     const real twoThirdrhoKm = -2.0 / 3 * 0.5 * (pv(i, j, k, 0) * zone->sv(i, j, k, param->n_spec) +
-                                                 pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec));
+                                                 pv(i, j, k + 1, 0) * zone->sv(i, j, k + 1, param->n_spec))
+                               * dy_div_delta;
     tau_xx += twoThirdrhoKm;
     tau_yy += twoThirdrhoKm;
     tau_zz += twoThirdrhoKm;

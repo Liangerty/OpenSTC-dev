@@ -79,7 +79,7 @@ void Driver<mix_model, turb>::initialize_computation() {
   }
   cudaDeviceSynchronize();
   // Third, communicate values between processes
-  data_communication(mesh, field, parameter, 0, param);
+  data_communication<mix_model,turb>(mesh, field, parameter, 0, param);
 
   if (myid == 0) {
     printf("Finish data transfer.\n");

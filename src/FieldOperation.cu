@@ -38,27 +38,27 @@ cfd::compute_temperature_and_pressure(int i, int j, int k, const DParameter *par
   bv(i, j, k, 4) = bv(i, j, k, 0) * t * gas_const;
 }
 
-__global__ void cfd::eliminate_k_gradient(cfd::DZone *zone, const DParameter *param) {
-  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my};
-  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
-  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - ngg;
-  if (i >= mx + ngg || j >= my + ngg) return;
-
-  auto &bv = zone->bv;
-  auto &sv = zone->sv;
-  const integer n_scalar = param->n_scalar;
-
-  for (integer k = 1; k <= ngg; ++k) {
-    for (int l = 0; l < 6; ++l) {
-      bv(i, j, k, l) = bv(i, j, 0, l);
-      bv(i, j, -k, l) = bv(i, j, 0, l);
-    }
-    for (int l = 0; l < n_scalar; ++l) {
-      sv(i, j, k, l) = sv(i, j, 0, l);
-      sv(i, j, -k, l) = sv(i, j, 0, l);
-    }
-  }
-}
+//__global__ void cfd::eliminate_k_gradient(cfd::DZone *zone, const DParameter *param) {
+//  const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my};
+//  integer i = (integer) (blockDim.x * blockIdx.x + threadIdx.x) - ngg;
+//  integer j = (integer) (blockDim.y * blockIdx.y + threadIdx.y) - ngg;
+//  if (i >= mx + ngg || j >= my + ngg) return;
+//
+//  auto &bv = zone->bv;
+//  auto &sv = zone->sv;
+//  const integer n_scalar = param->n_scalar;
+//
+//  for (integer k = 1; k <= ngg; ++k) {
+//    for (int l = 0; l < 6; ++l) {
+//      bv(i, j, k, l) = bv(i, j, 0, l);
+//      bv(i, j, -k, l) = bv(i, j, 0, l);
+//    }
+//    for (int l = 0; l < n_scalar; ++l) {
+//      sv(i, j, k, l) = sv(i, j, 0, l);
+//      sv(i, j, -k, l) = sv(i, j, 0, l);
+//    }
+//  }
+//}
 
 __global__ void cfd::compute_velocity(cfd::DZone *zone){
   const integer ngg{zone->ngg}, mx{zone->mx}, my{zone->my}, mz{zone->mz};

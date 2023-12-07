@@ -94,13 +94,19 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
   const integer n_turb{parameter.get_int("n_turb")};
 
   auto *mx = new integer[mesh.n_block_total], *my = new integer[mesh.n_block_total], *mz = new integer[mesh.n_block_total];
+  real solution_time{0};
   for (int b = 0; b < mesh.n_block_total; ++b) {
     // 1. Zone marker. Value = 299.0, indicates a V112 header.
     offset += 4;
     // 2. Zone name.
     gxl::read_str_from_plt_MPI_ver(fp, offset);
     // Jump through the following info which is not relevant to the current process.
-    offset += 36;
+    offset += 8;
+    // Read the solution time
+    MPI_File_read_at(fp, offset, &solution_time, 1, MPI_DOUBLE, &status);
+    offset += 8;
+    // Jump through the following info which is not relevant to the current process.
+    offset += 20;
     // For ordered zone, specify IMax, JMax, KMax
     MPI_File_read_at(fp, offset, &mx[b], 1, MPI_INT, &status);
     offset += 4;
@@ -111,11 +117,11 @@ void read_flowfield(cfd::Parameter &parameter, const cfd::Mesh &mesh, std::vecto
     // 11. For all zone types (repeat for each Auxiliary data name/value pair), no more data
     offset += 4;
   }
+  parameter.update_parameter("solution_time", solution_time);
   // Read the EOHMARKER
   offset += 4;
 
   std::vector<std::string> zone_name;
-  std::vector<double> solution_time;
   // Next, data section
   // Jump the front part for process 0 ~ myid-1
   integer n_jump_blk{0};
