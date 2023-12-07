@@ -10,16 +10,16 @@ The code is based on finite difference method and structured grid. The Navier-St
 
 - Turbulent simulations: Laminar / RANS
 - RANS model: k-$\omega$ SST
-- Mixture model: Air(single species) / Mixture(thermally perfect gas given in CHEMKIN form)
-- Combustion model: Finite rate chemistry
-- Boundary conditions: Supersonic inlet / Supersonic outlet / No-slip wall / Symmetry
+- Mixture model: Air(single species) / Mixture(thermally perfect gas given in CHEMKIN form) / Flamelet(in ACANS form)
+- Combustion model: Finite rate chemistry / Flamelet model (currently, the FlameMaster form of flamelet library is not supported, which may be implemented later)
+- Boundary conditions: Supersonic inlet / Supersonic outlet / No-slip wall / Symmetry / Riemann invariant / Backpressure
 
 Numerical methods:
 
-- Inviscid flux: AUSM+
+- Inviscid flux: AUSM+ / Roe / L-F / HLLC
 - Viscous flux: 2nd-order central difference
-- Reconstruction method: MUSCL / NND-2
-- Temporal scheme: Explicit Euler / DPLUR
+- Reconstruction method: MUSCL / NND-2 / AWENO-5
+- Temporal scheme: Explicit Euler / DPLUR / Runge-Kutta-3
 - Stiff chemistry: Point implicit / Diagonal approximation
 
 About the interface:
@@ -34,7 +34,6 @@ About the interface:
 Functions that are under development in this dev version
 -----------------
 
-- Unsteady simulation ability with SSPRK.
 - High order inviscid discretization methods such as WENO/TENO, hybrid method, etc.
 - More boundary conditions such as farfield, inlet profile, periodic, etc.
 - Turbulent inflow generation method such as synthetic turbulence generator, turbulence library, etc.
